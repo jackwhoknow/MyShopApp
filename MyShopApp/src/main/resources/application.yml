@@ -1,0 +1,175 @@
+spring:
+  application:
+    name: MyShopApp
+  profiles:
+    active: local
+  threads:
+    virtual:
+      # Java 21 虚拟线程：下单、支付等 IO 阻塞请求用轻量线程承载，提升并发能力
+      enabled: ${VIRTUAL_THREADS_ENABLED:true}
+  servlet:
+    multipart:
+      # 比业务限制（5MB）略大，让超出限制的图片走统一的中文错误提示
+      max-file-size: 6MB
+      max-request-size: 7MB
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:myshop}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false&createDatabaseIfNotExist=true
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      # 表结构只允许由 Flyway 迁移脚本变更，启动时仅校验实体与库结构是否一致
+      ddl-auto: validate
+    open-in-view: false
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      timeout: 3s
+      connect-timeout: 3s
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    virtual-host: ${RABBITMQ_VHOST:/}
+    # 下单消费者串行处理单个请求，避免同一消息被并发重复消费
+    listener:
+      simple:
+        prefetch: 1
+        concurrency: 2
+        max-concurrency: 8
+        acknowledge-mode: auto
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # 兼容已存在的旧库：自动建立基线后只执行基线之后的迁移
+    baseline-on-migrate: true
+    baseline-version: 1
+    validate-on-migrate: true
+
+server:
+  port: ${SERVER_PORT:8080}
+  # 生产环境由 Nginx 转发，需信任代理头以拿到真实客户端 IP
+  forward-headers-strategy: framework
+  shutdown: graceful
+
+jwt:
+  # 生产环境必须通过环境变量注入，且长度不少于 32 字符
+  secret: ${JWT_SECRET:MyShopApp-learning-secret-key-change-me-2026-0123456789}
+  # access token 短期有效，过期后用 refresh token 续期（默认 30 分钟）
+  expiration-ms: ${JWT_EXPIRATION_MS:1800000}
+  # refresh token 有效期（默认 7 天），一次性使用并轮换
+  refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000}
+
+# 安全相关参数
+myshop:
+  cache:
+    # 本地一级缓存（Caffeine）：有效期短于 Redis，写入/失效时两级同时清理
+    local-ttl-seconds: ${CACHE_LOCAL_TTL_SECONDS:30}
+    local-max-size: ${CACHE_LOCAL_MAX_SIZE:10000}
+  review:
+    # 评价敏感词：命中后进入人工审核，多个用英文逗号分隔
+    sensitive-words: ${REVIEW_SENSITIVE_WORDS:加微信,加v,代购,刷单,返现,兼职,赌博,色情,诈骗,办证}
+  ratelimit:
+    # 接口限流：Redis 令牌桶按客户端 IP 限速，Redis 故障时放行
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    default-rate: ${RATE_LIMIT_DEFAULT_RATE:50}
+    default-burst: ${RATE_LIMIT_DEFAULT_BURST:100}
+    sensitive-rate: ${RATE_LIMIT_SENSITIVE_RATE:5}
+    sensitive-burst: ${RATE_LIMIT_SENSITIVE_BURST:10}
+    order-rate: ${RATE_LIMIT_ORDER_RATE:10}
+    order-burst: ${RATE_LIMIT_ORDER_BURST:20}
+  security:
+    # 允许跨域访问的前端地址，多个用英文逗号分隔
+    cors-allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+    # 连续登录失败达到阈值后锁定账号
+    max-login-failures: ${MAX_LOGIN_FAILURES:5}
+    lock-minutes: ${LOGIN_LOCK_MINUTES:15}
+    # 单个 IP 每窗口期允许的登录请求次数
+    login-rate-limit: ${LOGIN_RATE_LIMIT:20}
+    login-rate-window-seconds: ${LOGIN_RATE_WINDOW_SECONDS:300}
+  order:
+    timeout-minutes: 30
+    timeout-scan-ms: 60000
+    async:
+      # 秒杀削峰开关：开启后下单先 Redis 预扣库存再投递 MQ 异步落库
+      enabled: ${ORDER_ASYNC_ENABLED:true}
+      # 排队结果保留时长（分钟），前端在此期间轮询
+      result-ttl-minutes: ${ORDER_ASYNC_RESULT_TTL_MINUTES:60}
+      # 消费者遇到非业务异常时的最大尝试次数
+      max-attempts: 3
+  upload:
+    # 本地上传目录，生产环境建议挂载独立数据盘
+    dir: ${UPLOAD_DIR:uploads}
+    public-prefix: /uploads
+  payment:
+    # 支付平台回调本站的公网地址前缀，必须是 https 公网域名
+    notify-base-url: ${PAY_NOTIFY_BASE_URL:http://localhost:8080}
+    # 模拟支付仅本地/测试环境开启，生产环境关闭
+    mock-enabled: false
+    # 支付对账任务扫描间隔
+    reconcile-delay-ms: ${PAY_RECONCILE_DELAY_MS:3600000}
+    reconcile-initial-delay-ms: ${PAY_RECONCILE_INITIAL_DELAY_MS:300000}
+    alipay:
+      enabled: ${ALIPAY_ENABLED:false}
+      server-url: ${ALIPAY_SERVER_URL:https://openapi.alipay.com/gateway.do}
+      app-id: ${ALIPAY_APP_ID:}
+      # 可选：支付宝账号 PID，配置后回调会额外校验
+      seller-id: ${ALIPAY_SELLER_ID:}
+      private-key-path: ${ALIPAY_PRIVATE_KEY_PATH:}
+      alipay-public-key-path: ${ALIPAY_PUBLIC_KEY_PATH:}
+      return-url: ${ALIPAY_RETURN_URL:http://localhost:5173/orders}
+    wechat:
+      enabled: ${WECHAT_PAY_ENABLED:false}
+      app-id: ${WECHAT_PAY_APP_ID:}
+      mch-id: ${WECHAT_PAY_MCH_ID:}
+      serial-no: ${WECHAT_PAY_SERIAL_NO:}
+      private-key-path: ${WECHAT_PAY_PRIVATE_KEY_PATH:}
+      # APIv3 密钥，32 位
+      api-v3-key: ${WECHAT_PAY_API_V3_KEY:}
+      platform-cert-path: ${WECHAT_PAY_PLATFORM_CERT_PATH:}
+
+# 支付渠道熔断：连续失败达到阈值后快速失败，避免请求堆积在超时等待上
+resilience4j:
+  circuitbreaker:
+    instances:
+      paymentGateway:
+        sliding-window-size: 20
+        minimum-number-of-calls: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 3
+        register-health-indicator: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # 只暴露健康检查，指标仅内网/运维按需开启
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: MyShopApp
+    description: 商城交易系统
+
+logging:
+  level:
+    root: info
+    com.example.myshopapp: info
+  file:
+    name: ${LOG_FILE:logs/myshop.log}

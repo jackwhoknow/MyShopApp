@@ -1,0 +1,23 @@
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/myshop_it?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false&createDatabaseIfNotExist=true
+    username: root
+    password: Lgs_870312
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+  rabbitmq:
+    listener:
+      simple:
+        auto-startup: false
+
+myshop:
+  order:
+    async:
+      # 集成测试在事务内同步下单，异步消费会读不到未提交数据
+      enabled: false
+
+logging:
+  level:
+    org.hibernate.SQL: warn

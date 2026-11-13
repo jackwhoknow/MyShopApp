@@ -1,0 +1,41 @@
+spring:
+  datasource:
+    url: jdbc:mysql://${DB_HOST:mysql}:${DB_PORT:3306}/${DB_NAME:myshop}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    username: ${DB_USERNAME:myshop}
+    password: ${DB_PASSWORD:}
+  jpa:
+    show-sql: false
+  data:
+    redis:
+      # 容器编排内通过服务名访问，密码由环境变量注入
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+
+# 生产环境默认关闭模拟支付，必须配置真实支付参数
+myshop:
+  payment:
+    mock-enabled: ${MOCK_PAYMENT_ENABLED:false}
+    notify-base-url: ${PAY_NOTIFY_BASE_URL}
+  security:
+    cors-allowed-origins: ${CORS_ALLOWED_ORIGINS}
+
+server:
+  # 容器内由 Nginx 反向代理，限制端口只在内网监听
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  file:
+    name: /app/logs/myshop.log
+  level:
+    root: warn
+    com.example.myshopapp: info

@@ -1,0 +1,209 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+body {
+  background: #f5f7fa;
+  color: #1f2d3d;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: #fff;
+  border-bottom: 1px solid #ebeef5;
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.04);
+}
+
+.header-inner {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  height: 64px;
+}
+
+.brand {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #c81623;
+  white-space: nowrap;
+}
+
+.header-nav {
+  display: flex;
+  gap: 24px;
+  font-size: 15px;
+  color: #606266;
+  flex: 1;
+}
+
+.header-nav a:hover,
+.header-nav a.router-link-active {
+  color: #c81623;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.header-user {
+  cursor: pointer;
+  font-size: 14px;
+  color: #303133;
+}
+
+.main {
+  padding-top: 24px;
+  padding-bottom: 48px;
+  min-height: calc(100vh - 64px - 80px);
+}
+
+.site-footer {
+  padding: 24px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: #909399;
+  border-top: 1px solid #ebeef5;
+  background: #fff;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.footer-links {
+  display: flex;
+  gap: 14px;
+}
+
+.footer-links a:hover {
+  color: #c81623;
+}
+
+.page-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 24px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+.section-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 20px;
+  padding-left: 10px;
+  border-left: 4px solid #c81623;
+  line-height: 1.2;
+}
+
+.price {
+  color: #c81623;
+  font-weight: 600;
+}
+
+.muted {
+  color: #909399;
+  font-size: 13px;
+}
+
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 18px;
+}
+
+.img-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #f2f4f8, #e6e9ef);
+  color: #b3bcc9;
+  font-size: 13px;
+}
+
+.empty-block {
+  padding: 60px 0;
+}
+
+@media (max-width: 768px) {
+  .header-inner {
+    gap: 12px;
+    height: 56px;
+  }
+
+  .header-nav {
+    display: none;
+  }
+
+  .brand {
+    font-size: 18px;
+  }
+
+  .container {
+    padding: 0 12px;
+  }
+
+  .header-actions {
+    gap: 10px;
+  }
+
+  .main {
+    padding-top: 16px;
+    padding-bottom: 28px;
+  }
+
+  .page-card {
+    padding: 16px;
+  }
+
+  .section-title {
+    font-size: 17px;
+    margin-bottom: 14px;
+  }
+
+  .product-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px;
+  }
+
+  /* 横向操作区在窄屏允许换行，避免按钮被挤出屏幕 */
+  .actions,
+  .sub-actions {
+    flex-wrap: wrap;
+  }
+
+  /* 表格在窄屏横向滚动，不撑破页面 */
+  .el-table {
+    font-size: 13px;
+  }
+}
