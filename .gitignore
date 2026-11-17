@@ -27,6 +27,7 @@ backups/
 logs/
 uploads/
 *.log
+.git.broken/
 
 # IDE
 .idea/
