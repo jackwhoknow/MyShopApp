@@ -47,7 +47,7 @@ jobs:
           --health-retries=10
     steps:
       - name: 拉取代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: 安装 JDK 21
         uses: actions/setup-java@v4
@@ -78,7 +78,7 @@ jobs:
         working-directory: shop-web
     steps:
       - name: 拉取代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: 安装 Node 22
         uses: actions/setup-node@v4
