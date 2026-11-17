@@ -1,0 +1,38 @@
+# 环境与密钥（绝不入库）
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.p12
+*.key
+*.jks
+
+# 依赖与构建产物
+node_modules/
+target/
+build/
+dist/
+out/
+*.class
+*.jar
+!MyShopApp/mvnw
+MyShopApp/.mvn/wrapper/maven-wrapper.jar
+
+# 本地工具与运行时产物
+.tools/
+tmp/
+.screenshots/
+backups/
+logs/
+uploads/
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# 系统文件
+Thumbs.db
+.DS_Store

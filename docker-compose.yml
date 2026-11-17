@@ -90,8 +90,13 @@ services:
       # 秒杀下单先 Redis 预扣再走 MQ 异步落库
       ORDER_ASYNC_ENABLED: ${ORDER_ASYNC_ENABLED:-true}
       JWT_SECRET: ${JWT_SECRET:?请在 .env 中设置 JWT_SECRET（至少 32 位）}
+      # 默认管理员：仅首次初始化创建，必须提供强密码，未配置则不创建管理员
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost}
       PAY_NOTIFY_BASE_URL: ${PAY_NOTIFY_BASE_URL:-http://localhost}
+      # 本地联调默认打开 Swagger；生产叠加层会覆盖为 false
+      API_DOCS_ENABLED: ${API_DOCS_ENABLED:-true}
       # 仅本地联调可置 true，生产必须 false
       MOCK_PAYMENT_ENABLED: ${MOCK_PAYMENT_ENABLED:-false}
       ALIPAY_ENABLED: ${ALIPAY_ENABLED:-false}
@@ -107,6 +112,27 @@ services:
       WECHAT_PAY_PRIVATE_KEY_PATH: ${WECHAT_PAY_PRIVATE_KEY_PATH:-}
       WECHAT_PAY_API_V3_KEY: ${WECHAT_PAY_API_V3_KEY:-}
       WECHAT_PAY_PLATFORM_CERT_PATH: ${WECHAT_PAY_PLATFORM_CERT_PATH:-}
+      # 邮件：开启后找回密码验证码走 SMTP，未开启时只写日志
+      MAIL_ENABLED: ${MAIL_ENABLED:-false}
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_PORT: ${MAIL_PORT:-465}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-星耀商城}
+      MAIL_SSL_ENABLED: ${MAIL_SSL_ENABLED:-true}
+      # 物流：mock=模拟轨迹，kuaidi100=快递100 实时查询
+      LOGISTICS_PROVIDER: ${LOGISTICS_PROVIDER:-mock}
+      KUAIDI100_CUSTOMER: ${KUAIDI100_CUSTOMER:-}
+      KUAIDI100_KEY: ${KUAIDI100_KEY:-}
+      # 图片存储：local=本地磁盘，s3=MinIO/S3 兼容对象存储
+      UPLOAD_STORAGE: ${UPLOAD_STORAGE:-local}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL:-}
     volumes:
       - upload-data:/app/uploads
       - app-logs:/app/logs

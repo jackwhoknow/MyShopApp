@@ -34,6 +34,22 @@ spring:
       database: ${REDIS_DATABASE:0}
       timeout: 3s
       connect-timeout: 3s
+  # SMTP 邮件服务：MAIL_ENABLED=true 时才会真正发信
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:465}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    default-encoding: UTF-8
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: ${MAIL_SSL_ENABLED:true}
+          connectiontimeout: 10000
+          timeout: 10000
+          writetimeout: 10000
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
@@ -71,6 +87,10 @@ jwt:
 
 # 安全相关参数
 myshop:
+  init:
+    # 默认管理员：仅数据库中不存在该账号时创建；必须通过 ADMIN_PASSWORD 提供强密码，未配置则跳过创建
+    admin-username: ${ADMIN_USERNAME:admin}
+    admin-password: ${ADMIN_PASSWORD:}
   cache:
     # 本地一级缓存（Caffeine）：有效期短于 Redis，写入/失效时两级同时清理
     local-ttl-seconds: ${CACHE_LOCAL_TTL_SECONDS:30}
@@ -78,6 +98,10 @@ myshop:
   review:
     # 评价敏感词：命中后进入人工审核，多个用英文逗号分隔
     sensitive-words: ${REVIEW_SENSITIVE_WORDS:加微信,加v,代购,刷单,返现,兼职,赌博,色情,诈骗,办证}
+  coupon:
+    # 优惠券到期前多少天提醒，扫描间隔（毫秒）
+    expiry-warn-days: ${COUPON_EXPIRY_WARN_DAYS:3}
+    expiry-scan-ms: ${COUPON_EXPIRY_SCAN_MS:3600000}
   ratelimit:
     # 接口限流：Redis 令牌桶按客户端 IP 限速，Redis 故障时放行
     enabled: ${RATE_LIMIT_ENABLED:true}
@@ -99,6 +123,12 @@ myshop:
   order:
     timeout-minutes: 30
     timeout-scan-ms: 60000
+    # 发货后多少天自动确认收货
+    auto-complete-days: ${ORDER_AUTO_COMPLETE_DAYS:7}
+    auto-complete-scan-ms: ${ORDER_AUTO_COMPLETE_SCAN_MS:300000}
+    # 售后待处理超过多少天自动关闭
+    after-sale-close-days: ${AFTER_SALE_CLOSE_DAYS:7}
+    after-sale-close-scan-ms: ${AFTER_SALE_CLOSE_SCAN_MS:300000}
     async:
       # 秒杀削峰开关：开启后下单先 Redis 预扣库存再投递 MQ 异步落库
       enabled: ${ORDER_ASYNC_ENABLED:true}
@@ -110,6 +140,28 @@ myshop:
     # 本地上传目录，生产环境建议挂载独立数据盘
     dir: ${UPLOAD_DIR:uploads}
     public-prefix: /uploads
+    # local=本地磁盘；s3=MinIO/S3 兼容对象存储
+    storage: ${UPLOAD_STORAGE:local}
+    s3:
+      endpoint: ${S3_ENDPOINT:}
+      access-key: ${S3_ACCESS_KEY:}
+      secret-key: ${S3_SECRET_KEY:}
+      bucket: ${S3_BUCKET:}
+      region: ${S3_REGION:us-east-1}
+      # 对外访问地址前缀，例如 CDN 域名；配置后上传返回该前缀下的完整 URL
+      public-base-url: ${S3_PUBLIC_BASE_URL:}
+  mail:
+    # 生产环境配置 SMTP 后置为 true，未开启时验证码只写日志便于联调
+    enabled: ${MAIL_ENABLED:false}
+    from: ${MAIL_FROM:${MAIL_USERNAME:}}
+    from-name: ${MAIL_FROM_NAME:星耀商城}
+  logistics:
+    # mock=本地模拟；kuaidi100=快递100 实时查询
+    provider: ${LOGISTICS_PROVIDER:mock}
+    kuaidi100:
+      customer: ${KUAIDI100_CUSTOMER:}
+      key: ${KUAIDI100_KEY:}
+      endpoint: ${KUAIDI100_ENDPOINT:https://poll.kuaidi100.com/poll/query.do}
   payment:
     # 支付平台回调本站的公网地址前缀，必须是 https 公网域名
     notify-base-url: ${PAY_NOTIFY_BASE_URL:http://localhost:8080}
@@ -153,14 +205,22 @@ management:
   endpoints:
     web:
       exposure:
-        # 只暴露健康检查，指标仅内网/运维按需开启
-        include: health,info
+        # 健康检查、版本信息与 Prometheus 抓取端点
+        include: health,info,metrics,prometheus
+  health:
+    mail:
+      # 未开启邮件时不探测 SMTP，避免健康检查因连接失败整体 DOWN
+      enabled: ${MAIL_ENABLED:false}
   endpoint:
     health:
       show-details: never
   info:
     env:
       enabled: true
+  metrics:
+    tags:
+      # 统一应用标签，便于多服务共用一套 Prometheus 时区分
+      application: ${spring.application.name}
 
 info:
   app:
