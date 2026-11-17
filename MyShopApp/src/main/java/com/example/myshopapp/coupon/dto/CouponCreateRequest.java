@@ -18,6 +18,9 @@ public record CouponCreateRequest(
         @NotNull(message = "请填写减免金额") @DecimalMin(value = "0.01", message = "减免金额需大于 0") BigDecimal discountAmount,
         @NotNull(message = "请填写发放数量") @Min(value = 1, message = "发放数量至少为 1") Integer totalCount,
         @NotNull(message = "请选择开始时间") LocalDateTime startAt,
-        @NotNull(message = "请选择结束时间") LocalDateTime endAt
+        @NotNull(message = "请选择结束时间") LocalDateTime endAt,
+
+        /** 积分兑换所需积分，0 或不传表示不参与积分兑换 */
+        @Min(value = 0, message = "兑换积分不能为负数") Integer pointsPrice
 ) {
 }

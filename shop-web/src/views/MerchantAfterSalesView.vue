@@ -204,6 +204,18 @@ onMounted(load)
 
         <div class="reason">
           <div class="reason-line">退款原因：{{ item.reason }}</div>
+          <div v-if="item.evidenceImages?.length" class="reason-line evidence-line">
+            <span>买家凭证：</span>
+            <el-image
+              v-for="image in item.evidenceImages"
+              :key="image"
+              :src="image"
+              :preview-src-list="item.evidenceImages"
+              preview-teleported
+              fit="cover"
+              class="evidence-image"
+            />
+          </div>
           <div v-if="item.merchantRemark" class="reason-line">
             {{ remarkLabel(item) }}：{{ item.merchantRemark }}
           </div>
@@ -381,6 +393,19 @@ onMounted(load)
 
 .reason-line {
   line-height: 1.8;
+}
+
+.evidence-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.evidence-image {
+  width: 56px;
+  height: 56px;
+  border-radius: 4px;
 }
 
 .admin-line {

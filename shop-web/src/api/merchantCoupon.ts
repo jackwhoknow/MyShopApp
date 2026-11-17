@@ -6,6 +6,8 @@ export interface CouponCreatePayload {
   thresholdAmount: number
   discountAmount: number
   totalCount: number
+  /** 积分兑换所需积分，0 表示不参与积分兑换 */
+  pointsPrice?: number
   startAt: string
   endAt: string
 }

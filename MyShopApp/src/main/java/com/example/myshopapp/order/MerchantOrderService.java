@@ -3,6 +3,7 @@ package com.example.myshopapp.order;
 import com.example.myshopapp.common.api.PageResult;
 import com.example.myshopapp.common.exception.BusinessException;
 import com.example.myshopapp.common.exception.ErrorCode;
+import com.example.myshopapp.logistics.LogisticsService;
 import com.example.myshopapp.notification.NotificationService;
 import com.example.myshopapp.notification.entity.NotificationType;
 import com.example.myshopapp.order.dto.BatchShipRequest;
@@ -44,6 +45,7 @@ public class MerchantOrderService {
     private final SubOrderRepository subOrderRepository;
     private final ShopRepository shopRepository;
     private final NotificationService notificationService;
+    private final LogisticsService logisticsService;
 
     @Transactional(readOnly = true)
     public PageResult<MerchantSubOrderVO> list(Long ownerId, SubOrderStatus status, String keyword,
@@ -83,7 +85,7 @@ public class MerchantOrderService {
     @Transactional(readOnly = true)
     public SubOrderLogisticsVO logistics(Long ownerId, Long subOrderId) {
         Shop shop = requireShop(ownerId);
-        return SubOrderLogisticsVO.from(requireOwnedSubOrder(shop.getId(), subOrderId));
+        return logisticsService.query(requireOwnedSubOrder(shop.getId(), subOrderId));
     }
 
     /**

@@ -7,6 +7,7 @@ import { categoryApi } from '@/api/category'
 import { contentApi } from '@/api/content'
 import { favoriteApi } from '@/api/favorite'
 import { productApi } from '@/api/product'
+import { searchApi } from '@/api/search'
 import ProductCard from '@/components/ProductCard.vue'
 import { useAuthStore } from '@/stores/auth'
 import type { Announcement, Banner, CategoryNode, HomeContent, ProductListItem } from '@/types'
@@ -27,6 +28,8 @@ const total = ref(0)
 const page = ref(0)
 const size = ref(12)
 const loading = ref(false)
+const hotKeywords = ref<string[]>([])
+const historyKeywords = ref<string[]>([])
 
 const home = ref<HomeContent>({ banners: [], announcements: [] })
 const announcementVisible = ref(false)
@@ -104,6 +107,24 @@ function handlePage(current: number) {
   load()
 }
 
+/** 点击热搜或历史词直接搜索 */
+function applyKeyword(word: string) {
+  keyword.value = word
+  search()
+}
+
+async function loadSearchMeta() {
+  hotKeywords.value = await searchApi.hot(8).catch(() => [])
+  if (auth.isLoggedIn) {
+    historyKeywords.value = await searchApi.history().catch(() => [])
+  }
+}
+
+async function clearHistory() {
+  await searchApi.clearHistory()
+  historyKeywords.value = []
+}
+
 /** 轮播无图片时使用的渐变色，按顺序循环 */
 const bannerGradients = [
   'linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%)',
@@ -140,6 +161,7 @@ function formatDateTime(value?: string) {
 
 onMounted(async () => {
   load()
+  loadSearchMeta()
   categories.value = await categoryApi.tree().catch(() => [])
   contentApi.home().then((data) => { home.value = data }).catch(() => undefined)
 })
@@ -234,6 +256,37 @@ onMounted(async () => {
       <el-button @click="resetFilters">重置</el-button>
     </div>
 
+    <div v-if="hotKeywords.length || historyKeywords.length" class="search-extra">
+      <template v-if="hotKeywords.length">
+        <span class="extra-label">热门搜索</span>
+        <el-tag
+          v-for="word in hotKeywords"
+          :key="`hot-${word}`"
+          size="small"
+          effect="plain"
+          class="extra-tag"
+          @click="applyKeyword(word)"
+        >
+          {{ word }}
+        </el-tag>
+      </template>
+      <template v-if="historyKeywords.length">
+        <span class="extra-label history-label">最近搜索</span>
+        <el-tag
+          v-for="word in historyKeywords"
+          :key="`history-${word}`"
+          size="small"
+          type="info"
+          effect="plain"
+          class="extra-tag"
+          @click="applyKeyword(word)"
+        >
+          {{ word }}
+        </el-tag>
+        <el-button link size="small" @click="clearHistory">清空</el-button>
+      </template>
+    </div>
+
     <div v-loading="loading" class="list-wrap">
       <div v-if="products.length" class="product-grid">
         <ProductCard
@@ -277,6 +330,28 @@ onMounted(async () => {
 
 .search-input {
   max-width: 420px;
+}
+
+.search-extra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: -8px 0 18px;
+  padding: 0 4px;
+}
+
+.extra-label {
+  font-size: 13px;
+  color: #909399;
+}
+
+.history-label {
+  margin-left: 16px;
+}
+
+.extra-tag {
+  cursor: pointer;
 }
 
 .category-select {

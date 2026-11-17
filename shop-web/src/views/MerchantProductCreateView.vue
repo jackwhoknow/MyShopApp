@@ -31,6 +31,7 @@ const form = reactive({
   name: '',
   subtitle: '',
   mainImage: '',
+  purchaseLimit: 0,
   description: ''
 })
 
@@ -144,6 +145,7 @@ async function submit() {
       subtitle: form.subtitle.trim() || undefined,
       description: form.description || undefined,
       mainImage: form.mainImage.trim(),
+      purchaseLimit: Number(form.purchaseLimit) || 0,
       specs: parsedSpecs.value,
       skus: skuRows.value.map((row) => ({
         price: row.price,
@@ -202,6 +204,10 @@ onMounted(async () => {
         </el-form-item>
         <el-form-item label="商品描述">
           <el-input v-model="form.description" type="textarea" :rows="4" />
+        </el-form-item>
+        <el-form-item label="每人限购">
+          <el-input-number v-model="form.purchaseLimit" :min="0" :max="9999" />
+          <span class="muted limit-tip">0 表示不限购；限购按商品累计已购数量计算</span>
         </el-form-item>
       </el-form>
     </div>

@@ -64,6 +64,7 @@ public class AdminCouponService {
         coupon.setThresholdAmount(request.thresholdAmount());
         coupon.setDiscountAmount(request.discountAmount());
         coupon.setTotalCount(request.totalCount());
+        coupon.setPointsPrice(request.pointsPrice() == null ? 0 : request.pointsPrice());
         coupon.setClaimedCount(0);
         coupon.setStartAt(request.startAt());
         coupon.setEndAt(request.endAt());

@@ -30,6 +30,8 @@ export interface ProductCreatePayload {
   subtitle?: string
   description?: string
   mainImage: string
+  /** 每人限购数量，0 表示不限购 */
+  purchaseLimit?: number
   specs: ProductSpecPayload[]
   skus: ProductSkuPayload[]
 }
@@ -49,6 +51,8 @@ export interface ProductUpdatePayload {
   subtitle?: string
   description?: string
   mainImage?: string
+  /** 每人限购数量，0 表示不限购 */
+  purchaseLimit?: number
   specs?: ProductSpecPayload[]
   skus?: ProductUpdateSkuPayload[]
 }

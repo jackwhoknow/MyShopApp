@@ -68,9 +68,14 @@ public class SecurityConfig {
                         .requestMatchers("/api/payments/alipay/notify", "/api/payments/wechat/notify").permitAll()
                         // 商品、分类、店铺、首页内容的读接口对外开放，游客也能逛
                         .requestMatchers(HttpMethod.GET, "/api/products/**", "/api/categories/**",
-                                "/api/shops/**", "/api/content/**", "/uploads/**").permitAll()
+                                "/api/shops/**", "/api/content/**", "/api/seckill/**",
+                                "/api/search/hot", "/api/search/suggest", "/api/promotions/**",
+                                "/uploads/**").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/merchant/**").hasAnyRole("MERCHANT", "ADMIN")
+                        // 在线接口文档与 Prometheus 指标：由部署层限制访问来源，生产默认关闭文档
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html",
+                                "/actuator/prometheus").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(handler -> handler

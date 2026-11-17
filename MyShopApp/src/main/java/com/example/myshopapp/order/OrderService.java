@@ -7,6 +7,7 @@ import com.example.myshopapp.cart.repository.CartItemRepository;
 import com.example.myshopapp.common.api.PageResult;
 import com.example.myshopapp.common.exception.BusinessException;
 import com.example.myshopapp.common.exception.ErrorCode;
+import com.example.myshopapp.logistics.LogisticsService;
 import com.example.myshopapp.notification.NotificationService;
 import com.example.myshopapp.notification.entity.NotificationType;
 import com.example.myshopapp.coupon.entity.Coupon;
@@ -23,15 +24,21 @@ import com.example.myshopapp.order.entity.PaymentRecord;
 import com.example.myshopapp.order.entity.PaymentStatus;
 import com.example.myshopapp.order.entity.SubOrder;
 import com.example.myshopapp.order.entity.SubOrderStatus;
+import com.example.myshopapp.order.repository.OrderItemRepository;
 import com.example.myshopapp.order.repository.OrderRepository;
 import com.example.myshopapp.order.repository.PaymentRecordRepository;
 import com.example.myshopapp.order.repository.SubOrderRepository;
 import com.example.myshopapp.order.seckill.SeckillStockService;
+import com.example.myshopapp.points.PointService;
 import com.example.myshopapp.product.entity.Product;
 import com.example.myshopapp.product.entity.ProductSku;
 import com.example.myshopapp.product.entity.ProductStatus;
 import com.example.myshopapp.product.repository.ProductSkuRepository;
 import com.example.myshopapp.product.support.SkuDescriber;
+import com.example.myshopapp.promotion.PromotionService;
+import com.example.myshopapp.promotion.entity.ShopPromotion;
+import com.example.myshopapp.seckill.SeckillActivityService;
+import com.example.myshopapp.seckill.entity.SeckillActivity;
 import com.example.myshopapp.shop.entity.ShopStatus;
 import com.example.myshopapp.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -43,6 +50,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -64,9 +72,13 @@ public class OrderService {
 
     private static final DateTimeFormatter NO_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
 
+    /** 积分最多抵扣扣券后应付金额的一半 */
+    private static final BigDecimal POINTS_MAX_RATIO = new BigDecimal("0.5");
+
     private final OrderRepository orderRepository;
     private final PaymentRecordRepository paymentRecordRepository;
     private final SubOrderRepository subOrderRepository;
+    private final OrderItemRepository orderItemRepository;
     private final CartItemRepository cartItemRepository;
     private final ProductSkuRepository productSkuRepository;
     private final UserAddressRepository userAddressRepository;
@@ -74,6 +86,10 @@ public class OrderService {
     private final UserCouponRepository userCouponRepository;
     private final NotificationService notificationService;
     private final SeckillStockService seckillStockService;
+    private final SeckillActivityService seckillActivityService;
+    private final PointService pointService;
+    private final LogisticsService logisticsService;
+    private final PromotionService promotionService;
 
     /**
      * 从购物车创建订单：
@@ -125,6 +141,10 @@ public class OrderService {
 
         // 店铺 id -> 该店铺参与结算的购物车项。LinkedHashMap 保证拆单顺序稳定
         Map<Long, List<CartItem>> itemsByShop = new LinkedHashMap<>();
+        // 商品 id -> 本次下单数量，用于限购校验
+        Map<Long, Integer> productQuantities = new LinkedHashMap<>();
+        // 当前进行中的秒杀活动：skuId -> 活动，下单时按活动价结算并校验限购
+        Map<Long, SeckillActivity> seckillBySku = seckillActivityService.runningBySku();
         for (CartItem cartItem : cartItems) {
             ProductSku sku = productSkuRepository.findByIdForUpdate(cartItem.getSku().getId())
                     .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "商品已不存在"));
@@ -140,6 +160,18 @@ public class OrderService {
             if (sku.getStock() < cartItem.getQuantity()) {
                 throw new BusinessException(ErrorCode.CONFLICT,
                         "商品「" + product.getName() + "」库存不足，仅剩 " + sku.getStock() + " 件");
+            }
+
+            // 限购校验：历史已购 + 本次下单不能超过商品限购数量
+            int orderedNow = productQuantities.merge(product.getId(),
+                    cartItem.getQuantity(), Integer::sum);
+            if (product.getPurchaseLimit() > 0) {
+                long bought = orderItemRepository.sumPurchasedQuantity(product.getId(), userId);
+                if (bought + orderedNow > product.getPurchaseLimit()) {
+                    throw new BusinessException(ErrorCode.CONFLICT,
+                            "商品「" + product.getName() + "」每人限购 " + product.getPurchaseLimit()
+                                    + " 件，你已购买 " + bought + " 件");
+                }
             }
 
             // 事务内扣减，后续任何一步失败都会整体回滚
@@ -179,19 +211,38 @@ public class OrderService {
                 ProductSku sku = cartItem.getSku();
                 Product product = sku.getProduct();
 
+                // 命中正在进行的秒杀活动时，先加锁校验活动库存与每人限购，再按活动价下单
+                SeckillActivity seckill = seckillBySku.get(sku.getId());
+                BigDecimal unitPrice = sku.getPrice();
+                if (seckill != null) {
+                    SeckillActivity consumed = seckillActivityService.consume(
+                            userId, seckill.getId(), cartItem.getQuantity());
+                    unitPrice = consumed.getActivityPrice();
+                }
+
                 OrderItem item = new OrderItem();
                 item.setSubOrder(subOrder);
                 item.setProductId(product.getId());
                 item.setSkuId(sku.getId());
+                item.setSeckillActivityId(seckill == null ? null : seckill.getId());
                 item.setProductName(product.getName());
                 item.setSkuDesc(SkuDescriber.describe(sku));
                 item.setImage(StringUtils.hasText(sku.getImage()) ? sku.getImage() : product.getMainImage());
-                item.setPrice(sku.getPrice());
+                item.setPrice(unitPrice);
                 item.setQuantity(cartItem.getQuantity());
-                item.setTotalPrice(sku.getPrice().multiply(BigDecimal.valueOf(cartItem.getQuantity())));
+                item.setTotalPrice(unitPrice.multiply(BigDecimal.valueOf(cartItem.getQuantity())));
                 subOrder.getItems().add(item);
 
                 subTotal = subTotal.add(item.getTotalPrice());
+            }
+
+            // 满减活动：按店铺小计匹配优惠力度最大的活动，先于优惠券计算
+            BigDecimal promotionDiscount = BigDecimal.ZERO;
+            ShopPromotion promotion = promotionService.bestFor(shopId, subTotal).orElse(null);
+            if (promotion != null) {
+                promotionDiscount = promotion.getReduceAmount().min(subTotal);
+                subOrder.setPromotionDiscount(promotionDiscount);
+                subOrder.setPromotionTitle(promotion.getTitle());
             }
 
             UserCoupon userCoupon = coupons.shopCoupons().get(shopId);
@@ -222,8 +273,12 @@ public class OrderService {
             SubOrder subOrder = target.subOrder();
             BigDecimal shopDiscount = subOrder.getDiscountAmount() == null
                     ? BigDecimal.ZERO : subOrder.getDiscountAmount();
-            BigDecimal platformDiscount = coupon.getDiscountAmount()
-                    .min(target.subTotal().subtract(shopDiscount).max(BigDecimal.ZERO));
+            BigDecimal remaining = target.subTotal()
+                    .subtract(subOrder.getPromotionDiscount() == null
+                            ? BigDecimal.ZERO : subOrder.getPromotionDiscount())
+                    .subtract(shopDiscount)
+                    .max(BigDecimal.ZERO);
+            BigDecimal platformDiscount = coupon.getDiscountAmount().min(remaining);
             subOrder.setDiscountAmount(shopDiscount.add(platformDiscount));
             subOrder.setCouponTitle(subOrder.getCouponTitle() == null
                     ? coupon.getTitle() : subOrder.getCouponTitle() + " + " + coupon.getTitle());
@@ -235,14 +290,51 @@ public class OrderService {
             SubOrder subOrder = draft.subOrder();
             BigDecimal discount = subOrder.getDiscountAmount() == null
                     ? BigDecimal.ZERO : subOrder.getDiscountAmount();
-            BigDecimal payable = draft.subTotal().subtract(discount);
+            BigDecimal promotionOff = subOrder.getPromotionDiscount() == null
+                    ? BigDecimal.ZERO : subOrder.getPromotionDiscount();
+            BigDecimal payable = draft.subTotal().subtract(promotionOff).subtract(discount);
             subOrder.setTotalAmount(payable);
             orderTotal = orderTotal.add(payable);
             order.getSubOrders().add(subOrder);
         }
+
+        // 积分抵扣：按扣券后应付金额的 50% 封顶，且必须为 100 积分的整数倍
+        int points = request.points() == null ? 0 : request.points();
+        if (points < 0) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "积分数量不正确");
+        }
+        if (points > 0) {
+            if (points % 100 != 0) {
+                throw new BusinessException(ErrorCode.PARAM_ERROR, "积分必须为 100 的整数倍");
+            }
+            BigDecimal pointsDiscount = BigDecimal.valueOf(points).movePointLeft(2);
+            if (pointsDiscount.compareTo(orderTotal.multiply(POINTS_MAX_RATIO)) > 0) {
+                throw new BusinessException(ErrorCode.CONFLICT, "积分抵扣不能超过应付金额的 50%");
+            }
+            // 抵扣金额按各子订单应付金额比例分摊，最后一单吸收分位尾差
+            List<SubOrder> subOrders = order.getSubOrders();
+            BigDecimal allocated = BigDecimal.ZERO;
+            for (int i = 0; i < subOrders.size(); i++) {
+                SubOrder subOrder = subOrders.get(i);
+                BigDecimal share = i == subOrders.size() - 1
+                        ? pointsDiscount.subtract(allocated)
+                        : pointsDiscount.multiply(subOrder.getTotalAmount())
+                                .divide(orderTotal, 2, RoundingMode.HALF_UP);
+                allocated = allocated.add(share);
+                subOrder.setTotalAmount(subOrder.getTotalAmount().subtract(share));
+            }
+            order.setPointsUsed(points);
+            order.setPointsDiscount(pointsDiscount);
+            orderTotal = orderTotal.subtract(pointsDiscount);
+        }
         order.setTotalAmount(orderTotal);
 
         orderRepository.save(order);
+
+        // 订单落库拿到 id 后再扣积分，流水可关联订单；余额不足时整个事务回滚
+        if (points > 0) {
+            pointService.deduct(userId, points, order.getId(), order.getOrderNo());
+        }
 
         // 券的核销要等订单落库拿到 id 后再回填
         if (!usedCoupons.isEmpty()) {
@@ -326,7 +418,7 @@ public class OrderService {
         SubOrder subOrder = subOrderRepository.findByIdAndOrderUserId(subOrderId, userId)
                 .filter(item -> item.getOrder().getId().equals(orderId))
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "子订单不存在"));
-        return SubOrderLogisticsVO.from(subOrder);
+        return logisticsService.query(subOrder);
     }
 
     /**
@@ -374,6 +466,13 @@ public class OrderService {
 
         order.setStatus(OrderStatus.PAID);
         order.setPaidAt(now);
+
+        // 支付成功按实付金额返还积分：1 元 1 积分，不足 1 元向下取整
+        int earned = order.getTotalAmount().intValue();
+        if (earned > 0) {
+            order.setPointsEarned(earned);
+            pointService.earn(order.getUser().getId(), earned, order.getId(), orderNo);
+        }
 
         // 支付成功：通知买家本人，并通知每个出单店铺的店主
         notificationService.notify(order.getUser().getId(), NotificationType.ORDER_PAID, "支付成功",
@@ -434,11 +533,19 @@ public class OrderService {
                         sku.setStock(sku.getStock() + item.getQuantity()));
                 // 数据库提交后再同步 Redis 预扣库存，避免事务回滚造成 Redis 多补
                 seckillStockService.adjustAfterCommit(item.getSkuId(), item.getQuantity());
+                if (item.getSeckillActivityId() != null) {
+                    seckillActivityService.restore(item.getSeckillActivityId(), item.getQuantity());
+                }
             }
         }
         order.setStatus(OrderStatus.CANCELLED);
         // 取消后把用掉的券退回，买家可继续用于其他订单
         releaseCoupons(order.getId());
+        // 取消后把下单抵扣的积分退回
+        if (order.getPointsUsed() > 0) {
+            pointService.returnOnCancel(order.getUser().getId(), order.getPointsUsed(),
+                    order.getId(), order.getOrderNo());
+        }
 
         if (timeout) {
             notificationService.notify(order.getUser().getId(), NotificationType.ORDER_CANCELLED,
@@ -482,6 +589,42 @@ public class OrderService {
         notifyOwners(activeSubOrders, NotificationType.ORDER_COMPLETED, "买家已确认收货",
                 "订单 " + order.getOrderNo() + " 买家已确认收货，交易完成");
         return OrderVO.from(order);
+    }
+
+    /**
+     * 系统自动确认收货：已发货且超过自动确认时限的子订单单独完成，
+     * 主订单下全部有效子订单都完成后主订单置为已完成。
+     */
+    @Transactional
+    public boolean autoCompleteSubOrder(Long subOrderId, LocalDateTime cutoff) {
+        SubOrder subOrder = subOrderRepository.findById(subOrderId).orElse(null);
+        if (subOrder == null
+                || subOrder.getStatus() != SubOrderStatus.SHIPPED
+                || subOrder.getShippedAt() == null
+                || !subOrder.getShippedAt().isBefore(cutoff)) {
+            return false;
+        }
+
+        subOrder.setStatus(SubOrderStatus.COMPLETED);
+        subOrder.setCompletedAt(LocalDateTime.now());
+
+        Order order = subOrder.getOrder();
+        boolean allCompleted = order.getSubOrders().stream()
+                .filter(sub -> sub.getStatus() != SubOrderStatus.CANCELLED)
+                .allMatch(sub -> sub.getStatus() == SubOrderStatus.COMPLETED);
+        if (allCompleted && order.getStatus() != OrderStatus.COMPLETED) {
+            order.setStatus(OrderStatus.COMPLETED);
+        }
+
+        notificationService.notify(
+                order.getUser().getId(),
+                NotificationType.ORDER_AUTO_COMPLETED,
+                "订单已自动确认收货",
+                "子订单 " + subOrder.getSubOrderNo() + " 发货已超过约定时间，系统已自动确认收货",
+                "/orders/" + order.getId());
+        notifyOwners(List.of(subOrder), NotificationType.ORDER_COMPLETED, "订单已自动完成",
+                "子订单 " + subOrder.getSubOrderNo() + " 超时未确认收货，系统已自动完成");
+        return true;
     }
 
     /** 同一订单的多家店铺各发一条通知，同一店主只通知一次 */

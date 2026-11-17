@@ -24,6 +24,10 @@ const refundDialogVisible = ref(false)
 const refundSubmitting = ref(false)
 const refundTarget = ref<SubOrder>()
 const refundReason = ref('')
+/** 售后凭证图片，最多 6 张 */
+const refundImages = ref<string[]>([])
+const refundUploading = ref(false)
+const refundInputRef = ref<HTMLInputElement>()
 
 const returnDialogVisible = ref(false)
 const returnSubmitting = ref(false)
@@ -39,6 +43,14 @@ const reviewForm = ref<{ rating: number; content: string; images: string[] }>({
   content: '',
   images: []
 })
+
+/** 追评：每笔评价只能追评一次 */
+const appendDialogVisible = ref(false)
+const appendSubmitting = ref(false)
+const appendTarget = ref<Review>()
+const appendForm = ref<{ content: string; images: string[] }>({ content: '', images: [] })
+const appendUploading = ref(false)
+const appendInputRef = ref<HTMLInputElement>()
 
 /** 评价图片最多 6 张，上传走通用图片接口 */
 const reviewUploading = ref(false)
@@ -82,6 +94,111 @@ async function onReviewImagesChange(event: Event) {
 
 function removeReviewImage(index: number) {
   reviewForm.value.images.splice(index, 1)
+}
+
+/** 售后凭证上传：与评价图片共用上传接口，最多 6 张 */
+function pickRefundImages() {
+  if (refundImages.value.length >= 6) {
+    ElMessage.warning('最多上传 6 张凭证')
+    return
+  }
+  refundInputRef.value?.click()
+}
+
+async function onRefundImagesChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const files = Array.from(input.files ?? [])
+  input.value = ''
+  if (!files.length) return
+  refundUploading.value = true
+  try {
+    for (const file of files) {
+      if (refundImages.value.length >= 6) {
+        ElMessage.warning('最多上传 6 张凭证')
+        break
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        ElMessage.warning(`${file.name} 超过 5MB，已跳过`)
+        continue
+      }
+      if (!['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(file.type)) {
+        ElMessage.warning(`${file.name} 格式不支持，已跳过`)
+        continue
+      }
+      const result = await uploadApi.image(file, 'content')
+      refundImages.value.push(result.url)
+    }
+  } finally {
+    refundUploading.value = false
+  }
+}
+
+function removeRefundImage(index: number) {
+  refundImages.value.splice(index, 1)
+}
+
+/** 追评图片上传 */
+function openAppend(review: Review) {
+  appendTarget.value = review
+  appendForm.value = { content: '', images: [] }
+  appendDialogVisible.value = true
+}
+
+function pickAppendImages() {
+  if (appendForm.value.images.length >= 6) {
+    ElMessage.warning('最多上传 6 张图片')
+    return
+  }
+  appendInputRef.value?.click()
+}
+
+async function onAppendImagesChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const files = Array.from(input.files ?? [])
+  input.value = ''
+  if (!files.length) return
+  appendUploading.value = true
+  try {
+    for (const file of files) {
+      if (appendForm.value.images.length >= 6) break
+      if (file.size > 5 * 1024 * 1024) {
+        ElMessage.warning(`${file.name} 超过 5MB，已跳过`)
+        continue
+      }
+      if (!['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(file.type)) {
+        ElMessage.warning(`${file.name} 格式不支持，已跳过`)
+        continue
+      }
+      const result = await uploadApi.image(file, 'content')
+      appendForm.value.images.push(result.url)
+    }
+  } finally {
+    appendUploading.value = false
+  }
+}
+
+function removeAppendImage(index: number) {
+  appendForm.value.images.splice(index, 1)
+}
+
+async function submitAppend() {
+  if (!appendTarget.value) return
+  if (!appendForm.value.content.trim() && !appendForm.value.images.length) {
+    ElMessage.warning('请填写追评内容或上传图片')
+    return
+  }
+  appendSubmitting.value = true
+  try {
+    const updated = await reviewApi.append(appendTarget.value.id, {
+      content: appendForm.value.content.trim() || undefined,
+      images: appendForm.value.images.length ? appendForm.value.images : undefined
+    })
+    reviews.value = reviews.value.map((item) => (item.id === updated.id ? updated : item))
+    ElMessage.success('追评已提交')
+    appendDialogVisible.value = false
+  } finally {
+    appendSubmitting.value = false
+  }
 }
 
 /** 发票：已支付订单可申请，一个订单只开一张 */
@@ -303,6 +420,7 @@ async function load() {
 function openRefund(sub: SubOrder) {
   refundTarget.value = sub
   refundReason.value = ''
+  refundImages.value = []
   refundDialogVisible.value = true
 }
 
@@ -317,7 +435,8 @@ async function submitRefund() {
   try {
     await afterSaleApi.apply({
       subOrderId: refundTarget.value.id,
-      reason: refundReason.value.trim()
+      reason: refundReason.value.trim(),
+      evidenceImages: refundImages.value.length ? refundImages.value : undefined
     })
     ElMessage.success(isReturn ? '退货退款申请已提交，等待商家处理' : '退款申请已提交，等待商家处理')
     refundDialogVisible.value = false
@@ -534,6 +653,21 @@ const shippedAt = computed(() => {
             </el-tag>
           </div>
           <div class="after-sale-line">退款原因：{{ latestAfterSale(sub.id)?.reason }}</div>
+          <div
+            v-if="latestAfterSale(sub.id)?.evidenceImages?.length"
+            class="after-sale-line evidence-line"
+          >
+            <span>凭证：</span>
+            <el-image
+              v-for="image in latestAfterSale(sub.id)?.evidenceImages"
+              :key="image"
+              :src="image"
+              :preview-src-list="latestAfterSale(sub.id)?.evidenceImages"
+              preview-teleported
+              fit="cover"
+              class="evidence-image"
+            />
+          </div>
 
           <template v-if="latestAfterSale(sub.id)?.type === 'RETURN_REFUND'">
             <div v-if="latestAfterSale(sub.id)?.merchantRemark" class="after-sale-line">
@@ -590,6 +724,32 @@ const shippedAt = computed(() => {
               <div v-if="reviewOf(item.id)?.reply" class="review-reply">
                 商家回复：{{ reviewOf(item.id)?.reply }}
               </div>
+              <div v-if="reviewOf(item.id)?.appendContent || reviewOf(item.id)?.appendImages?.length" class="review-append">
+                <div class="append-label">我的追评</div>
+                <div v-if="reviewOf(item.id)?.appendContent" class="muted">
+                  {{ reviewOf(item.id)?.appendContent }}
+                </div>
+                <div v-if="reviewOf(item.id)?.appendImages?.length" class="review-images">
+                  <el-image
+                    v-for="img in reviewOf(item.id)?.appendImages ?? []"
+                    :key="img"
+                    :src="img"
+                    :preview-src-list="reviewOf(item.id)?.appendImages ?? []"
+                    fit="cover"
+                    class="review-image"
+                  />
+                </div>
+              </div>
+              <el-button
+                v-else
+                link
+                type="primary"
+                size="small"
+                class="append-btn"
+                @click="openAppend(reviewOf(item.id)!)"
+              >
+                追评
+              </el-button>
             </div>
             <div v-else-if="sub.status === 'COMPLETED'" class="item-review">
               <el-button link type="primary" size="small" @click="openReview(item)">评价商品</el-button>
@@ -673,6 +833,32 @@ const shippedAt = computed(() => {
             maxlength="200"
             show-word-limit
             placeholder="请说明退款原因，方便商家处理"
+          />
+        </el-form-item>
+        <el-form-item label="凭证图片">
+          <div class="review-upload">
+            <div v-for="(img, index) in refundImages" :key="img" class="review-upload-item">
+              <el-image :src="img" fit="cover" class="review-upload-img" />
+              <span class="review-upload-remove" @click="removeRefundImage(index)">×</span>
+            </div>
+            <div
+              v-if="refundImages.length < 6"
+              class="review-upload-add"
+              :class="{ 'is-loading': refundUploading }"
+              @click="pickRefundImages"
+            >
+              <span v-if="refundUploading">上传中</span>
+              <span v-else>+ 上传</span>
+            </div>
+          </div>
+          <div class="muted upload-tip">选填，最多 6 张，单张不超过 5MB</div>
+          <input
+            ref="refundInputRef"
+            type="file"
+            accept="image/jpeg,image/png,image/gif,image/webp"
+            multiple
+            class="hidden-input"
+            @change="onRefundImagesChange"
           />
         </el-form-item>
       </el-form>
@@ -778,6 +964,50 @@ const shippedAt = computed(() => {
         <el-button type="primary" :loading="reviewSubmitting" @click="submitReview">
           提交评价
         </el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="appendDialogVisible" title="追加评价" width="460px">
+      <el-form label-width="70px">
+        <el-form-item label="追评">
+          <el-input
+            v-model="appendForm.content"
+            type="textarea"
+            :rows="4"
+            maxlength="500"
+            show-word-limit
+            placeholder="使用一段时间后的感受（与图片至少填写一项）"
+          />
+        </el-form-item>
+        <el-form-item label="图片">
+          <div class="review-upload">
+            <div v-for="(img, index) in appendForm.images" :key="img" class="review-upload-item">
+              <el-image :src="img" fit="cover" class="review-upload-img" />
+              <span class="review-upload-remove" @click="removeAppendImage(index)">×</span>
+            </div>
+            <div
+              v-if="appendForm.images.length < 6"
+              class="review-upload-add"
+              :class="{ 'is-loading': appendUploading }"
+              @click="pickAppendImages"
+            >
+              <span v-if="appendUploading">上传中</span>
+              <span v-else>+ 上传</span>
+            </div>
+          </div>
+          <input
+            ref="appendInputRef"
+            type="file"
+            accept="image/jpeg,image/png,image/gif,image/webp"
+            multiple
+            class="hidden-input"
+            @change="onAppendImagesChange"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="appendDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="appendSubmitting" @click="submitAppend">提交追评</el-button>
       </template>
     </el-dialog>
 
@@ -924,6 +1154,19 @@ const shippedAt = computed(() => {
   line-height: 1.8;
 }
 
+.evidence-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.evidence-image {
+  width: 52px;
+  height: 52px;
+  border-radius: 4px;
+}
+
 .admin-remark {
   color: #c45656;
 }
@@ -1023,6 +1266,24 @@ const shippedAt = computed(() => {
   border-radius: 6px;
   background: #f5f7fa;
   color: #606266;
+}
+
+.review-append {
+  width: 100%;
+  padding: 6px 10px;
+  border-left: 3px solid #c81623;
+  border-radius: 4px;
+  background: #fffafa;
+}
+
+.append-label {
+  font-size: 12px;
+  color: #c81623;
+  margin-bottom: 2px;
+}
+
+.append-btn {
+  align-self: flex-start;
 }
 
 .item-price {

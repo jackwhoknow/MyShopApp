@@ -32,6 +32,10 @@ public record ProductUpdateRequest(
         @Size(max = 255, message = "主图地址不能超过 255 个字符")
         String mainImage,
 
+        /** 每个用户限购数量，0 表示不限购，null 表示不修改 */
+        @Min(value = 0, message = "限购数量不能为负数")
+        Integer purchaseLimit,
+
         /** 为空表示不修改规格 */
         @Valid
         List<SpecRequest> specs,

@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { useRouter } from 'vue-router'
 import { userApi } from '@/api/user'
 import { useAuthStore } from '@/stores/auth'
 import type { UserInfo } from '@/types'
 
 const auth = useAuthStore()
+const router = useRouter()
 
 const roleLabels: Record<string, string> = {
   BUYER: '买家',
@@ -16,9 +18,11 @@ const roleLabels: Record<string, string> = {
 const loading = ref(false)
 const savingProfile = ref(false)
 const savingPassword = ref(false)
+const exporting = ref(false)
+const deactivating = ref(false)
 const profile = ref<UserInfo | null>(auth.user)
 
-const profileForm = reactive({ nickname: '', phone: '' })
+const profileForm = reactive({ nickname: '', phone: '', email: '' })
 const passwordForm = reactive({ oldPassword: '', newPassword: '', confirmPassword: '' })
 
 /** 把最新资料同步到页面展示与全局登录态，顶栏昵称随之刷新 */
@@ -26,6 +30,7 @@ function applyUser(user: UserInfo) {
   profile.value = user
   profileForm.nickname = user.nickname || ''
   profileForm.phone = user.phone || ''
+  profileForm.email = user.email || ''
   auth.updateUser({ nickname: user.nickname, phone: user.phone })
 }
 
@@ -41,6 +46,7 @@ async function load() {
 async function saveProfile() {
   const nickname = profileForm.nickname.trim()
   const phone = profileForm.phone.trim()
+  const email = profileForm.email.trim()
   if (nickname.length > 50) {
     ElMessage.warning('昵称长度不能超过 50')
     return
@@ -49,12 +55,17 @@ async function saveProfile() {
     ElMessage.warning('手机号格式不正确')
     return
   }
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    ElMessage.warning('邮箱格式不正确')
+    return
+  }
   savingProfile.value = true
   try {
     applyUser(
       await userApi.updateProfile({
         nickname: nickname || undefined,
-        phone
+        phone,
+        email
       })
     )
     ElMessage.success('资料已更新')
@@ -91,6 +102,58 @@ async function changePassword() {
   }
 }
 
+/** 导出个人数据为 JSON 文件，便于用户留档或迁移 */
+async function exportData() {
+  exporting.value = true
+  try {
+    const data = await userApi.exportData()
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `myshop-data-${new Date().toISOString().slice(0, 10)}.json`
+    link.click()
+    URL.revokeObjectURL(url)
+    ElMessage.success('数据已导出')
+  } finally {
+    exporting.value = false
+  }
+}
+
+/** 注销账号：二次输入密码确认，成功后清空登录态 */
+async function deactivateAccount() {
+  let password = ''
+  try {
+    const result = await ElMessageBox.prompt(
+      '注销后账号将无法登录，历史订单会保留但个人资料将被清除，且不可恢复。请输入登录密码确认。',
+      '注销账号',
+      {
+        inputType: 'password',
+        inputPlaceholder: '请输入登录密码',
+        confirmButtonText: '确认注销',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    password = result.value || ''
+  } catch {
+    return
+  }
+  if (!password) {
+    ElMessage.warning('请输入登录密码')
+    return
+  }
+  deactivating.value = true
+  try {
+    await userApi.deactivate(password)
+    ElMessage.success('账号已注销')
+    auth.logout()
+    router.push('/login')
+  } finally {
+    deactivating.value = false
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -123,6 +186,8 @@ onMounted(load)
           <div>{{ profile?.nickname || '未设置' }}</div>
           <div class="meta-label">手机号</div>
           <div>{{ profile?.phone || '未绑定' }}</div>
+          <div class="meta-label">邮箱</div>
+          <div>{{ profile?.email || '未绑定' }}</div>
         </div>
       </div>
 
@@ -135,6 +200,9 @@ onMounted(load)
             </el-form-item>
             <el-form-item label="手机号">
               <el-input v-model="profileForm.phone" maxlength="20" placeholder="留空表示解绑手机号" />
+            </el-form-item>
+            <el-form-item label="邮箱">
+              <el-input v-model="profileForm.email" maxlength="100" placeholder="用于找回密码，留空表示解绑" />
             </el-form-item>
           </el-form>
           <div class="form-foot">
@@ -169,6 +237,20 @@ onMounted(load)
           </el-form>
           <div class="form-foot">
             <el-button type="primary" :loading="savingPassword" @click="changePassword">修改密码</el-button>
+          </div>
+        </div>
+
+        <div class="page-card">
+          <div class="block-title">数据与账号</div>
+          <p class="muted data-tip">
+            你可以随时导出在本平台产生的资料、地址、订单、评价、优惠券与积分记录。
+            注销账号后个人资料将被清除且无法恢复，历史订单按法规要求保留。
+          </p>
+          <div class="data-actions">
+            <el-button :loading="exporting" @click="exportData">导出我的数据</el-button>
+            <el-button type="danger" plain :loading="deactivating" @click="deactivateAccount">
+              注销账号
+            </el-button>
           </div>
         </div>
       </div>
@@ -246,5 +328,17 @@ onMounted(load)
 .form-foot {
   display: flex;
   justify-content: flex-end;
+}
+
+.data-tip {
+  font-size: 13px;
+  line-height: 1.7;
+  margin-bottom: 16px;
+}
+
+.data-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 </style>

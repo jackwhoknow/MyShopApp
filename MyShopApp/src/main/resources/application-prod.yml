@@ -28,10 +28,17 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
   endpoint:
     health:
       show-details: never
+
+# 生产环境默认关闭接口文档，需要临时排查时通过 API_DOCS_ENABLED=true 打开
+springdoc:
+  api-docs:
+    enabled: ${API_DOCS_ENABLED:false}
+  swagger-ui:
+    enabled: ${API_DOCS_ENABLED:false}
 
 logging:
   file:

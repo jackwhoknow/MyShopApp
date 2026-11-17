@@ -1,5 +1,5 @@
-# MySQL 备份脚本（Windows）
-# 用法：$env:DB_PASSWORD="密码"; .\scripts\backup-db.ps1
+# MySQL backup script (Windows)
+# Usage: $env:DB_PASSWORD="password"; .\scripts\backup-db.ps1
 param(
     [string]$BackupDir = ".\backups",
     [int]$KeepDays = 7,
@@ -12,21 +12,21 @@ param(
 
 $ErrorActionPreference = "Stop"
 if (-not $env:DB_PASSWORD) {
-    throw "请先设置环境变量 DB_PASSWORD"
+    throw "Please set environment variable DB_PASSWORD first"
 }
 New-Item -ItemType Directory -Force -Path $BackupDir | Out-Null
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $target = Join-Path $BackupDir "$DbName-$timestamp.sql"
 
 $env:MYSQL_PWD = $env:DB_PASSWORD
-& $Mysqldump -h $DbHost -P $DbPort -u $DbUser --single-transaction --routines --triggers --set-gtid-purged=OFF $DbName |
+& $Mysqldump -h $DbHost -P $DbPort -u $DbUser --single-transaction --routines --triggers --set-gtid-purged=OFF --default-character-set=utf8mb4 $DbName |
     Out-File -Encoding utf8 $target
 
-Get-Item $target | ForEach-Object { "备份完成：$($_.FullName)（$([math]::Round($_.Length / 1MB, 2)) MB）" }
+Get-Item $target | ForEach-Object { "Backup finished: $($_.FullName) ($([math]::Round($_.Length / 1MB, 2)) MB)" }
 
-# 清理过期备份
+# Remove backups older than KeepDays
 $expireBefore = (Get-Date).AddDays(-$KeepDays)
 Get-ChildItem -Path $BackupDir -Filter "$DbName-*.sql" |
     Where-Object { $_.LastWriteTime -lt $expireBefore } |
     Remove-Item -Force
-"已清理 $KeepDays 天前的备份文件"
+"Removed backups older than $KeepDays days"

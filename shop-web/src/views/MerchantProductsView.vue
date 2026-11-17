@@ -64,6 +64,7 @@ const editForm = reactive({
   name: '',
   subtitle: '',
   mainImage: '',
+  purchaseLimit: 0,
   description: ''
 })
 const editSpecs = ref<SpecDraft[]>([])
@@ -217,6 +218,7 @@ async function openEdit(item: ProductListItem) {
   editForm.name = detail.name
   editForm.subtitle = detail.subtitle ?? ''
   editForm.mainImage = detail.mainImage ?? ''
+  editForm.purchaseLimit = detail.purchaseLimit ?? 0
   editForm.description = detail.description ?? ''
   editSpecs.value = detail.specs.map((spec) => ({
     name: spec.name,
@@ -291,6 +293,7 @@ async function submitEdit() {
       subtitle: editForm.subtitle.trim() || undefined,
       description: editForm.description || undefined,
       mainImage: editForm.mainImage.trim() || undefined,
+      purchaseLimit: Number(editForm.purchaseLimit) || 0,
       specs: parsedEditSpecs.value,
       skus: editSkuRows.value.map((row) => ({
         id: row.id,
@@ -496,6 +499,10 @@ onMounted(async () => {
         </el-form-item>
         <el-form-item label="商品描述">
           <el-input v-model="editForm.description" type="textarea" :rows="3" />
+        </el-form-item>
+        <el-form-item label="每人限购">
+          <el-input-number v-model="editForm.purchaseLimit" :min="0" :max="9999" />
+          <span class="muted">0 表示不限购</span>
         </el-form-item>
       </el-form>
 

@@ -7,12 +7,13 @@ import java.util.List;
 
 /**
  * 创建订单：指定收货地址；cartItemIds 为空表示结算整个购物车。
- * userCouponIds 为本次使用的领券记录 id，同一店铺最多一张。
+ * userCouponIds 为本次使用的领券记录 id，同一店铺最多一张；points 为本次抵扣的积分（100 的整数倍）。
  */
 public record CreateOrderRequest(
         @NotNull(message = "请选择收货地址") Long addressId,
         @Size(max = 200, message = "备注不能超过 200 字") String remark,
         List<Long> cartItemIds,
-        List<Long> userCouponIds
+        List<Long> userCouponIds,
+        Integer points
 ) {
 }

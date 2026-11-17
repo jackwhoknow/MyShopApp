@@ -14,10 +14,11 @@ public record SeckillOrderRequest(
         @NotNull(message = "请选择收货地址") Long addressId,
         @Size(max = 200, message = "备注不能超过 200 字") String remark,
         List<Long> cartItemIds,
-        List<Long> userCouponIds
+        List<Long> userCouponIds,
+        Integer points
 ) {
 
     public CreateOrderRequest toCreateRequest() {
-        return new CreateOrderRequest(addressId, remark, cartItemIds, userCouponIds);
+        return new CreateOrderRequest(addressId, remark, cartItemIds, userCouponIds, points);
     }
 }

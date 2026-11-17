@@ -1,7 +1,9 @@
 package com.example.myshopapp.auth;
 
+import com.example.myshopapp.auth.dto.EmailCodeRequest;
 import com.example.myshopapp.auth.dto.LoginRequest;
 import com.example.myshopapp.auth.dto.LoginResponse;
+import com.example.myshopapp.auth.dto.PasswordResetRequest;
 import com.example.myshopapp.auth.dto.RefreshTokenRequest;
 import com.example.myshopapp.auth.dto.RegisterRequest;
 import com.example.myshopapp.common.api.ApiResponse;
@@ -26,10 +28,25 @@ public class AuthController {
 
     private final AuthService authService;
     private final CaptchaService captchaService;
+    private final EmailCodeService emailCodeService;
 
     @GetMapping("/captcha")
     public ApiResponse<CaptchaVO> captcha() {
         return ApiResponse.ok(captchaService.create());
+    }
+
+    /** 忘记密码：向注册邮箱发送验证码（本地环境验证码打印在应用日志） */
+    @PostMapping("/password/code")
+    public ApiResponse<Void> sendResetCode(@Valid @RequestBody EmailCodeRequest request) {
+        emailCodeService.sendResetCode(request.email());
+        return ApiResponse.ok();
+    }
+
+    /** 忘记密码：邮箱验证码重置密码 */
+    @PostMapping("/password/reset")
+    public ApiResponse<Void> resetPassword(@Valid @RequestBody PasswordResetRequest request) {
+        authService.resetPassword(request);
+        return ApiResponse.ok();
     }
 
     @PostMapping("/register")

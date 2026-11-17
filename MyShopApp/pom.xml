@@ -86,6 +86,28 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
+        <!-- 邮件：找回密码验证码，生产环境配置 SMTP 后启用 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+        <!-- 对象存储：S3 兼容协议（MinIO / 云厂商 S3 网关），生产环境替代本地磁盘 -->
+        <dependency>
+            <groupId>io.minio</groupId>
+            <artifactId>minio</artifactId>
+            <version>8.5.17</version>
+        </dependency>
+        <!-- Prometheus 指标暴露：JVM、HTTP、数据源与业务指标统一采集 -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+        <!-- 在线接口文档：Swagger UI + OpenAPI JSON，生产环境默认关闭 -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>2.8.9</version>
+        </dependency>
         <!-- 多实例部署时定时任务只允许一个实例执行 -->
         <dependency>
             <groupId>net.javacrumbs.shedlock</groupId>
@@ -145,6 +167,14 @@
                         </exclude>
                     </excludes>
                 </configuration>
+                <executions>
+                    <!-- 生成 build-info，启动后可通过 /actuator/info 查看版本与构建时间 -->
+                    <execution>
+                        <goals>
+                            <goal>build-info</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

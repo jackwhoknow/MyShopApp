@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { addressApi } from '@/api/address'
 import { orderApi } from '@/api/order'
 import { couponApi } from '@/api/coupon'
+import { pointApi } from '@/api/points'
 import AddressDialog from '@/components/AddressDialog.vue'
 import { useCartStore } from '@/stores/cart'
-import type { Address, UserCoupon } from '@/types'
+import type { Address, PointQuote, UserCoupon } from '@/types'
 
 const route = useRoute()
 const router = useRouter()
@@ -79,6 +80,32 @@ const discountAmount = computed(
 
 const payableAmount = computed(() => Math.max(totalAmount.value - discountAmount.value, 0))
 
+// 积分抵扣：可抵积分由后端按「扣券后应付金额的 50%」与账户余额试算
+const pointQuote = ref<PointQuote>()
+const usePoints = ref(false)
+
+const usedPointsDiscount = computed(() =>
+  usePoints.value ? Math.min(pointQuote.value?.maxDeductibleAmount ?? 0, payableAmount.value) : 0
+)
+
+const finalPayable = computed(() => Math.max(payableAmount.value - usedPointsDiscount.value, 0))
+
+watch(
+  payableAmount,
+  async (amount) => {
+    try {
+      pointQuote.value = await pointApi.quote(amount)
+      if (!pointQuote.value.maxDeductiblePoints) {
+        usePoints.value = false
+      }
+    } catch {
+      pointQuote.value = undefined
+      usePoints.value = false
+    }
+  },
+  { immediate: true }
+)
+
 const currentAddress = computed(() => addresses.value.find((item) => item.id === addressId.value))
 
 async function loadAddresses() {
@@ -136,6 +163,13 @@ async function submitOrder() {
     userCouponIds.push(selectedPlatformCouponId.value)
   }
 
+  // 提交前按当前应付金额重新试算，避免页面停留期间金额变化导致积分抵扣失效
+  let points = 0
+  if (usePoints.value) {
+    const quote = await pointApi.quote(payableAmount.value)
+    points = quote.maxDeductiblePoints
+  }
+
   submitting.value = true
   try {
     // 每次点击生成新的幂等键，网络重试也不会重复下单
@@ -145,7 +179,8 @@ async function submitOrder() {
       addressId: addressId.value,
       remark: remark.value.trim() || undefined,
       cartItemIds: items.value.map((item) => item.id),
-      userCouponIds
+      userCouponIds,
+      points
     })
     if (result.status === 'FAILED') {
       ElMessage.error(result.message || '下单失败，请稍后重试')
@@ -295,6 +330,25 @@ async function onAddressSaved() {
 
     <div class="page-card block">
       <div class="block-head">
+        <span class="block-title">积分抵扣</span>
+      </div>
+      <div class="points-row">
+        <div>
+          <div class="item-name">可用积分 {{ pointQuote?.balance ?? 0 }}</div>
+          <div class="muted">
+            本单最多可抵 {{ pointQuote?.maxDeductiblePoints ?? 0 }} 积分（¥{{
+              (pointQuote?.maxDeductibleAmount ?? 0).toFixed(2)
+            }}）
+          </div>
+        </div>
+        <el-checkbox v-model="usePoints" :disabled="!pointQuote?.maxDeductiblePoints">
+          使用积分抵扣
+        </el-checkbox>
+      </div>
+    </div>
+
+    <div class="page-card block">
+      <div class="block-head">
         <span class="block-title">订单备注</span>
       </div>
       <el-input v-model="remark" type="textarea" :rows="2" maxlength="200" show-word-limit placeholder="选填：对本次交易的说明" />
@@ -304,9 +358,12 @@ async function onAddressSaved() {
       <div class="summary">
         <div class="muted">商品金额：¥{{ totalAmount.toFixed(2) }}</div>
         <div v-if="discountAmount > 0" class="discount-line">优惠：-¥{{ discountAmount.toFixed(2) }}</div>
+        <div v-if="usedPointsDiscount > 0" class="discount-line">
+          积分抵扣：-¥{{ usedPointsDiscount.toFixed(2) }}
+        </div>
         <div>
           共 {{ items.length }} 种商品，应付：
-          <span class="price total">¥{{ payableAmount.toFixed(2) }}</span>
+          <span class="price total">¥{{ finalPayable.toFixed(2) }}</span>
         </div>
       </div>
       <el-button type="danger" size="large" :loading="submitting" :disabled="!items.length" @click="submitOrder">
@@ -444,6 +501,13 @@ async function onAddressSaved() {
 
 .coupon-row:last-child {
   border-bottom: none;
+}
+
+.points-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
 }
 
 .coupon-shop {

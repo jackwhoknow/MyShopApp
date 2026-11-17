@@ -2,6 +2,7 @@ package com.example.myshopapp.auth;
 
 import com.example.myshopapp.auth.dto.LoginRequest;
 import com.example.myshopapp.auth.dto.LoginResponse;
+import com.example.myshopapp.auth.dto.PasswordResetRequest;
 import com.example.myshopapp.auth.dto.RegisterRequest;
 import com.example.myshopapp.common.config.SecurityProperties;
 import com.example.myshopapp.common.exception.BusinessException;
@@ -39,11 +40,16 @@ public class AuthService {
     private final TokenRevocationService tokenRevocationService;
     private final RefreshTokenService refreshTokenService;
     private final SecurityProperties securityProperties;
+    private final EmailCodeService emailCodeService;
 
     @Transactional
     public UserVO register(RegisterRequest request) {
         if (userRepository.existsByUsername(request.username())) {
             throw new BusinessException(ErrorCode.CONFLICT, "用户名已存在");
+        }
+        String email = normalizeEmail(request.email());
+        if (email != null && userRepository.existsByEmailAndDeletedFalse(email)) {
+            throw new BusinessException(ErrorCode.CONFLICT, "邮箱已被使用");
         }
 
         String roleCode = request.merchant() ? RoleCode.MERCHANT : RoleCode.BUYER;
@@ -55,9 +61,33 @@ public class AuthService {
         user.setPassword(passwordEncoder.encode(request.password()));
         user.setNickname(StringUtils.hasText(request.nickname()) ? request.nickname() : request.username());
         user.setPhone(request.phone());
+        user.setEmail(email);
         user.getRoles().add(role);
         userRepository.save(user);
         return UserVO.from(user);
+    }
+
+    /**
+     * 忘记密码：校验邮箱验证码后重置密码，并吊销该用户已签发的全部登录态。
+     */
+    @Transactional
+    public void resetPassword(PasswordResetRequest request) {
+        emailCodeService.verifyResetCode(request.email(), request.code());
+        String email = normalizeEmail(request.email());
+        User user = userRepository.findByEmailAndDeletedFalse(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "该邮箱未注册"));
+
+        user.setPassword(passwordEncoder.encode(request.newPassword()));
+        user.setFailedLoginAttempts(0);
+        user.setLockedUntil(null);
+        userRepository.save(user);
+        // 密码变更后旧 token 与 refresh token 全部失效
+        tokenRevocationService.revokeAllForUser(user.getId());
+        refreshTokenService.revokeAll(user.getId());
+    }
+
+    private String normalizeEmail(String email) {
+        return StringUtils.hasText(email) ? email.trim().toLowerCase() : null;
     }
 
     /**

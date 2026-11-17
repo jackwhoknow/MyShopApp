@@ -27,6 +27,24 @@ public interface AfterSaleRepository extends JpaRepository<AfterSale, Long> {
 
     boolean existsBySubOrderIdAndStatus(Long subOrderId, AfterSaleStatus status);
 
+    /** 售后超时自动关闭：待处理且申请时间早于截止时间的售后单 id */
+    @Query("""
+            select a.id from AfterSale a
+            where a.status = :status
+              and a.createdAt < :cutoff
+            """)
+    List<Long> findIdsByStatusAndCreatedAtBefore(@Param("status") AfterSaleStatus status,
+                                                  @Param("cutoff") LocalDateTime cutoff);
+
+    /** 店铺已退款总额，用于结算概览展示 */
+    @Query("""
+            select sum(a.amount) from AfterSale a
+            where a.shopId = :shopId
+              and a.status = :status
+            """)
+    java.math.BigDecimal sumAmountByShopAndStatus(@Param("shopId") Long shopId,
+                                                  @Param("status") AfterSaleStatus status);
+
     Page<AfterSale> findByUserIdOrderByIdDesc(Long userId, Pageable pageable);
 
     Page<AfterSale> findByShopIdOrderByIdDesc(Long shopId, Pageable pageable);

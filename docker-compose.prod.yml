@@ -1,0 +1,55 @@
+# 生产环境叠加层：docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# 与基础 compose 合并使用，集中放置生产差异：日志轮转、资源上限、文档关闭、慢查询日志。
+services:
+  mysql:
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      # 慢查询日志：超过 1 秒的 SQL 记录到容器日志，便于定期巡检
+      - --slow-query-log=1
+      - --long-query-time=1
+      - --max-connections=300
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  redis:
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --requirepass
+      - ${REDIS_PASSWORD:?请在 .env 中设置 REDIS_PASSWORD}
+      # 限制内存并优先淘汰缓存类键，避免挤占验证码/黑名单等关键数据
+      - --maxmemory
+      - 512mb
+      - --maxmemory-policy
+      - volatile-lru
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+  backend:
+    environment:
+      # 生产关闭接口文档，避免暴露内部接口结构
+      API_DOCS_ENABLED: "false"
+      # 生产日志级别收敛到 warn，业务日志仍保持 info
+      LOGGING_LEVEL_ROOT: warn
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    mem_limit: 1g
+
+  frontend:
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+    mem_limit: 256m

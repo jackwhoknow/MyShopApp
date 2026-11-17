@@ -32,6 +32,11 @@ const router = createRouter({
           component: () => import('@/views/ShopView.vue')
         },
         {
+          path: 'seckill',
+          name: 'seckill',
+          component: () => import('@/views/SeckillView.vue')
+        },
+        {
           path: 'cart',
           name: 'cart',
           component: () => import('@/views/CartView.vue'),
@@ -65,6 +70,18 @@ const router = createRouter({
           path: 'coupons',
           name: 'coupons',
           component: () => import('@/views/CouponsView.vue'),
+          meta: { requiresAuth: true }
+        },
+        {
+          path: 'points',
+          name: 'points',
+          component: () => import('@/views/PointsView.vue'),
+          meta: { requiresAuth: true }
+        },
+        {
+          path: 'support',
+          name: 'support',
+          component: () => import('@/views/SupportView.vue'),
           meta: { requiresAuth: true }
         },
         {
@@ -116,9 +133,33 @@ const router = createRouter({
           meta: { requiresAuth: true, roles: ['MERCHANT', 'ADMIN'] }
         },
         {
+          path: 'merchant/settlement',
+          name: 'merchant-settlement',
+          component: () => import('@/views/MerchantSettlementView.vue'),
+          meta: { requiresAuth: true, roles: ['MERCHANT', 'ADMIN'] }
+        },
+        {
+          path: 'merchant/promotions',
+          name: 'merchant-promotions',
+          component: () => import('@/views/MerchantPromotionsView.vue'),
+          meta: { requiresAuth: true, roles: ['MERCHANT', 'ADMIN'] }
+        },
+        {
+          path: 'merchant/support',
+          name: 'merchant-support',
+          component: () => import('@/views/MerchantSupportView.vue'),
+          meta: { requiresAuth: true, roles: ['MERCHANT', 'ADMIN'] }
+        },
+        {
           path: 'merchant/coupons',
           name: 'merchant-coupons',
           component: () => import('@/views/MerchantCouponsView.vue'),
+          meta: { requiresAuth: true, roles: ['MERCHANT', 'ADMIN'] }
+        },
+        {
+          path: 'merchant/seckill',
+          name: 'merchant-seckill',
+          component: () => import('@/views/MerchantSeckillView.vue'),
           meta: { requiresAuth: true, roles: ['MERCHANT', 'ADMIN'] }
         },
         {
@@ -162,6 +203,12 @@ const router = createRouter({
           name: 'merchant-shop',
           component: () => import('@/views/MerchantShopView.vue'),
           meta: { requiresAuth: true, roles: ['MERCHANT', 'ADMIN'] }
+        },
+        {
+          path: 'admin/support',
+          name: 'admin-support',
+          component: () => import('@/views/AdminSupportView.vue'),
+          meta: { requiresAuth: true, roles: ['ADMIN'] }
         },
         {
           path: 'admin/orders',
@@ -209,6 +256,12 @@ const router = createRouter({
           path: 'admin/invoices',
           name: 'admin-invoices',
           component: () => import('@/views/AdminInvoicesView.vue'),
+          meta: { requiresAuth: true, roles: ['ADMIN'] }
+        },
+        {
+          path: 'admin/settlements',
+          name: 'admin-settlements',
+          component: () => import('@/views/AdminSettlementsView.vue'),
           meta: { requiresAuth: true, roles: ['ADMIN'] }
         },
         {

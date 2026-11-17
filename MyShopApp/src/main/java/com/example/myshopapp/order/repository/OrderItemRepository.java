@@ -47,6 +47,26 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
     List<TopProductProjection> findTopProductsAll(@Param("statuses") Collection<SubOrderStatus> statuses,
                                                   Pageable pageable);
 
+    /** 用户在某场秒杀活动中的已购数量（已取消的订单/子订单不计入限购） */
+    @Query("""
+            select coalesce(sum(i.quantity), 0) from OrderItem i
+            where i.seckillActivityId = :activityId
+              and i.subOrder.order.user.id = :userId
+              and i.subOrder.order.status <> com.example.myshopapp.order.entity.OrderStatus.CANCELLED
+              and i.subOrder.status <> com.example.myshopapp.order.entity.SubOrderStatus.CANCELLED
+            """)
+    long sumSeckillQuantity(@Param("activityId") Long activityId, @Param("userId") Long userId);
+
+    /** 用户已购买某商品的数量（限购校验；已取消的订单/子订单不计入） */
+    @Query("""
+            select coalesce(sum(i.quantity), 0) from OrderItem i
+            where i.productId = :productId
+              and i.subOrder.order.user.id = :userId
+              and i.subOrder.order.status <> com.example.myshopapp.order.entity.OrderStatus.CANCELLED
+              and i.subOrder.status <> com.example.myshopapp.order.entity.SubOrderStatus.CANCELLED
+            """)
+    long sumPurchasedQuantity(@Param("productId") Long productId, @Param("userId") Long userId);
+
     interface TopProductProjection {
         Long getProductId();
 

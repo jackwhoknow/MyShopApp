@@ -13,6 +13,7 @@ export interface RegisterPayload {
   password: string
   nickname?: string
   phone?: string
+  email?: string
   merchant?: boolean
 }
 
@@ -30,5 +31,10 @@ export const authApi = {
     http.post<LoginResult>('/api/auth/refresh', { refreshToken }),
   logout: (refreshToken?: string) =>
     http.post<void>('/api/auth/logout', refreshToken ? { refreshToken } : undefined),
-  register: (data: RegisterPayload) => http.post<UserInfo>('/api/auth/register', data)
+  register: (data: RegisterPayload) => http.post<UserInfo>('/api/auth/register', data),
+  /** 忘记密码：发送邮箱验证码 */
+  sendResetCode: (email: string) => http.post<void>('/api/auth/password/code', { email }),
+  /** 忘记密码：邮箱验证码重置密码 */
+  resetPassword: (data: { email: string; code: string; newPassword: string }) =>
+    http.post<void>('/api/auth/password/reset', data)
 }

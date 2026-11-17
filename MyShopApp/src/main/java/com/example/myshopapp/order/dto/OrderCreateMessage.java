@@ -14,10 +14,11 @@ public record OrderCreateMessage(
         String remark,
         List<Long> cartItemIds,
         List<Long> userCouponIds,
+        Integer points,
         Map<Long, Integer> quantities
 ) {
 
     public CreateOrderRequest toRequest() {
-        return new CreateOrderRequest(addressId, remark, cartItemIds, userCouponIds);
+        return new CreateOrderRequest(addressId, remark, cartItemIds, userCouponIds, points);
     }
 }

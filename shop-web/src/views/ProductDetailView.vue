@@ -6,11 +6,14 @@ import QRCode from 'qrcode'
 import { favoriteApi } from '@/api/favorite'
 import { historyApi } from '@/api/history'
 import { productApi } from '@/api/product'
+import { promotionApi } from '@/api/promotion'
 import { reviewApi } from '@/api/review'
 import { shopFollowApi } from '@/api/shopFollow'
+import { supportApi } from '@/api/support'
 import { useAuthStore } from '@/stores/auth'
 import { useCartStore } from '@/stores/cart'
-import type { FollowState, ProductDetail, Review } from '@/types'
+import ProductCard from '@/components/ProductCard.vue'
+import type { FollowState, ProductDetail, ProductListItem, Review, ShopPromotion } from '@/types'
 
 const route = useRoute()
 const router = useRouter()
@@ -33,6 +36,11 @@ const shareQr = ref('')
 const shareUrl = computed(() => `${location.origin}/products/${product.value?.id ?? ''}`)
 /** specName -> 选中的规格值 */
 const selected = reactive<Record<string, string>>({})
+
+/** 同分类推荐与店铺满减 */
+const related = ref<ProductListItem[]>([])
+const promotions = ref<ShopPromotion[]>([])
+const contactLoading = ref(false)
 
 /** 商品评价：只展示审核通过的评价，分页加载 */
 const reviews = ref<Review[]>([])
@@ -93,6 +101,14 @@ onMounted(async () => {
       favorited.value = ids.includes(product.value.id)
       // 浏览历史属于附加记录，失败不影响商品展示
       historyApi.record(product.value.id).catch(() => undefined)
+    }
+    if (product.value) {
+      productApi.related(product.value.id, 8)
+        .then((list) => (related.value = list))
+        .catch(() => undefined)
+      promotionApi.activeByShop(product.value.shopId)
+        .then((list) => (promotions.value = list))
+        .catch(() => undefined)
     }
     loadReviews()
   } finally {
@@ -157,6 +173,22 @@ async function copyShareLink() {
     ElMessage.success('链接已复制')
   } catch {
     ElMessage.warning('复制失败，请手动复制地址栏链接')
+  }
+}
+
+/** 联系店铺客服：登录后自动创建/复用会话并跳转客服页 */
+async function contactShop() {
+  if (!product.value) return
+  if (!auth.isLoggedIn) {
+    router.push({ path: '/login', query: { redirect: route.fullPath } })
+    return
+  }
+  contactLoading.value = true
+  try {
+    const conversation = await supportApi.start(product.value.shopId)
+    router.push({ path: '/support', query: { conversationId: String(conversation.id) } })
+  } finally {
+    contactLoading.value = false
   }
 }
 
@@ -262,6 +294,14 @@ async function addToCart(buyNow = false) {
             {{ followState.following ? '已关注店铺' : '关注店铺' }}（{{ followState.followers }}）
           </el-button>
           <el-button size="large" @click="openShare">分享</el-button>
+          <el-button size="large" :loading="contactLoading" @click="contactShop">联系客服</el-button>
+        </div>
+
+        <div v-if="promotions.length" class="promo-box">
+          <el-tag type="danger" effect="dark" size="small">满减</el-tag>
+          <span v-for="promotion in promotions" :key="promotion.id" class="promo-item">
+            满 {{ promotion.thresholdAmount }} 减 {{ promotion.reduceAmount }}
+          </span>
         </div>
       </div>
     </div>
@@ -301,9 +341,31 @@ async function addToCart(buyNow = false) {
           />
         </div>
         <div v-if="review.reply" class="review-reply">商家回复：{{ review.reply }}</div>
+        <div v-if="review.appendContent || review.appendImages?.length" class="review-append">
+          <div class="append-label">追评 · {{ review.appendedAt?.replace('T', ' ').slice(0, 16) }}</div>
+          <p v-if="review.appendContent" class="review-content">{{ review.appendContent }}</p>
+          <div v-if="review.appendImages?.length" class="review-images">
+            <el-image
+              v-for="image in review.appendImages"
+              :key="image"
+              :src="image"
+              :preview-src-list="review.appendImages"
+              preview-teleported
+              fit="cover"
+              class="review-image"
+            />
+          </div>
+        </div>
       </div>
       <div v-if="reviews.length < reviewTotal" class="review-more">
         <el-button :loading="reviewLoading" @click="loadMoreReviews">加载更多</el-button>
+      </div>
+    </div>
+
+    <div v-if="related.length" class="page-card related">
+      <h2 class="section-title">相关推荐</h2>
+      <div class="product-grid">
+        <ProductCard v-for="item in related" :key="item.id" :product="item" />
       </div>
     </div>
   </div>
@@ -388,6 +450,40 @@ async function addToCart(buyNow = false) {
   background: #fafafa;
   font-size: 13px;
   color: #606266;
+}
+
+.review-append {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-left: 3px solid #c81623;
+  background: #fffafa;
+  border-radius: 4px;
+}
+
+.append-label {
+  font-size: 12px;
+  color: #c81623;
+  margin-bottom: 4px;
+}
+
+.promo-box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 10px 12px;
+  background: #fff7f7;
+  border-radius: 6px;
+}
+
+.promo-item {
+  font-size: 13px;
+  color: #c81623;
+}
+
+.related {
+  margin-top: 16px;
 }
 
 .review-more {

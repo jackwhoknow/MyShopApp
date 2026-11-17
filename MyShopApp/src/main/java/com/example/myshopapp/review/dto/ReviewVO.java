@@ -24,6 +24,9 @@ public record ReviewVO(
         int rating,
         String content,
         List<String> images,
+        String appendContent,
+        List<String> appendImages,
+        LocalDateTime appendedAt,
         String reply,
         LocalDateTime repliedAt,
         ReviewStatus status,
@@ -48,6 +51,11 @@ public record ReviewVO(
                 review.getImages() == null || review.getImages().isBlank()
                         ? List.of()
                         : Arrays.stream(review.getImages().split(",")).filter(s -> !s.isBlank()).toList(),
+                review.getAppendContent(),
+                review.getAppendImages() == null || review.getAppendImages().isBlank()
+                        ? List.of()
+                        : Arrays.stream(review.getAppendImages().split(",")).filter(s -> !s.isBlank()).toList(),
+                review.getAppendedAt(),
                 review.getReply(),
                 review.getRepliedAt(),
                 review.getStatus(),

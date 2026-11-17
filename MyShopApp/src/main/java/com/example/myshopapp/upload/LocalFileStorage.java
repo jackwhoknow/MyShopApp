@@ -3,6 +3,7 @@ package com.example.myshopapp.upload;
 import com.example.myshopapp.common.exception.BusinessException;
 import com.example.myshopapp.common.exception.ErrorCode;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -19,10 +20,12 @@ import java.util.UUID;
 
 /**
  * 本地磁盘存储：按分类/月份分目录，文件名随机生成，扩展名取自文件头而不是原始文件名，
- * 避免路径穿越、伪装扩展名和同名覆盖。
+ * 避免路径穿越、伪装扩展名和同名覆盖。生产多实例部署时应切换为对象存储。
  */
 @Slf4j
 @Service
+@ConditionalOnProperty(prefix = "myshop.upload", name = "storage",
+        havingValue = "local", matchIfMissing = true)
 public class LocalFileStorage implements FileStorage {
 
     private static final long MAX_SIZE = 5L * 1024 * 1024;
@@ -61,7 +64,7 @@ public class LocalFileStorage implements FileStorage {
         } catch (IOException e) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "读取上传图片失败");
         }
-        String extension = detectExtension(bytes);
+        String extension = ImageSupport.detectExtension(bytes);
         if (extension == null) {
             throw new BusinessException(ErrorCode.PARAM_ERROR, "仅支持 JPG、PNG、GIF、WEBP 图片");
         }
@@ -81,27 +84,5 @@ public class LocalFileStorage implements FileStorage {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "图片保存失败，请稍后重试");
         }
         return publicPrefix + "/" + relativeDir + "/" + filename;
-    }
-
-    /** 根据文件头识别真实图片类型，不信任客户端文件名和 Content-Type */
-    private static String detectExtension(byte[] bytes) {
-        if (bytes.length >= 3
-                && (bytes[0] & 0xFF) == 0xFF && (bytes[1] & 0xFF) == 0xD8 && (bytes[2] & 0xFF) == 0xFF) {
-            return "jpg";
-        }
-        if (bytes.length >= 8
-                && (bytes[0] & 0xFF) == 0x89 && bytes[1] == 'P' && bytes[2] == 'N' && bytes[3] == 'G') {
-            return "png";
-        }
-        if (bytes.length >= 6
-                && bytes[0] == 'G' && bytes[1] == 'I' && bytes[2] == 'F' && bytes[3] == '8') {
-            return "gif";
-        }
-        if (bytes.length >= 12
-                && bytes[0] == 'R' && bytes[1] == 'I' && bytes[2] == 'F' && bytes[3] == 'F'
-                && bytes[8] == 'W' && bytes[9] == 'E' && bytes[10] == 'B' && bytes[11] == 'P') {
-            return "webp";
-        }
-        return null;
     }
 }

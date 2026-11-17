@@ -64,6 +64,14 @@ public class SubOrder {
     @Column(length = 50)
     private String couponTitle;
 
+    /** 满减活动优惠金额，0 表示未命中活动 */
+    @Column(nullable = false, precision = 10, scale = 2)
+    private BigDecimal promotionDiscount = BigDecimal.ZERO;
+
+    /** 命中的满减活动名称 */
+    @Column(length = 50)
+    private String promotionTitle;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private SubOrderStatus status = SubOrderStatus.WAIT_SHIP;

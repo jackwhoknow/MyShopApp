@@ -7,6 +7,8 @@ export interface CreateOrderPayload {
   cartItemIds?: number[]
   /** 本次使用的领券记录 id，每个店铺最多一张 */
   userCouponIds?: number[]
+  /** 本次抵扣的积分（100 的整数倍），不传或 0 表示不使用 */
+  points?: number
 }
 
 /** 秒杀下单：requestId 为幂等键，同一请求重复提交不会生成多张订单 */

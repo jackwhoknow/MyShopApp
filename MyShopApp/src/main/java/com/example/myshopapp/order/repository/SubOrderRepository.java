@@ -20,6 +20,16 @@ public interface SubOrderRepository extends JpaRepository<SubOrder, Long> {
     /** 商家只能操作自己店铺的子订单 */
     Optional<SubOrder> findByIdAndShopId(Long id, Long shopId);
 
+    /** 自动确认收货：已发货且发货时间早于截止时间的子订单 id */
+    @Query("""
+            select s.id from SubOrder s
+            where s.status = :status
+              and s.shippedAt is not null
+              and s.shippedAt < :cutoff
+            """)
+    List<Long> findIdsByStatusAndShippedAtBefore(@Param("status") SubOrderStatus status,
+                                                  @Param("cutoff") LocalDateTime cutoff);
+
     /** 买家只能对自己订单下的子订单发起售后 */
     Optional<SubOrder> findByIdAndOrderUserId(Long id, Long userId);
 
@@ -117,6 +127,47 @@ public interface SubOrderRepository extends JpaRepository<SubOrder, Long> {
                                                @Param("startAt") LocalDateTime startAt,
                                                @Param("endAt") LocalDateTime endAt);
 
+    /**
+     * 可结算收入：已发货 + 已完成的子订单金额之和，
+     * 且主订单已支付或已完成（已退款子订单为 CANCELLED，天然不计入）。
+     */
+    @Query("""
+            select sum(s.totalAmount) from SubOrder s
+            where s.shop.id = :shopId
+              and s.status in :statuses
+              and s.order.status in :orderStatuses
+            """)
+    BigDecimal sumSettleableAmount(@Param("shopId") Long shopId,
+                                   @Param("statuses") Collection<SubOrderStatus> statuses,
+                                   @Param("orderStatuses") Collection<OrderStatus> orderStatuses);
+
+    /** 结算账单明细：店铺下已支付主订单（含已退款）的子订单，按 id 倒序 */
+    @Query(value = """
+            select s from SubOrder s
+            where s.shop.id = :shopId
+              and s.order.paidAt is not null
+              and (:hasStatus = false or s.status = :status)
+              and (:hasKeyword = false
+                   or s.subOrderNo like :keywordPattern
+                   or s.order.orderNo like :keywordPattern)
+            order by s.id desc
+            """,
+            countQuery = """
+            select count(s) from SubOrder s
+            where s.shop.id = :shopId
+              and s.order.paidAt is not null
+              and (:hasStatus = false or s.status = :status)
+              and (:hasKeyword = false
+                   or s.subOrderNo like :keywordPattern
+                   or s.order.orderNo like :keywordPattern)
+            """)
+    Page<SubOrder> searchSettlementBills(@Param("shopId") Long shopId,
+                                         @Param("hasStatus") boolean hasStatus,
+                                         @Param("status") SubOrderStatus status,
+                                         @Param("hasKeyword") boolean hasKeyword,
+                                         @Param("keywordPattern") String keywordPattern,
+                                         Pageable pageable);
+
     /** 平台累计销售额：不区分店铺，已发货 + 已完成子订单金额之和 */
     @Query("""
             select sum(s.totalAmount) from SubOrder s
@@ -161,4 +212,28 @@ public interface SubOrderRepository extends JpaRepository<SubOrder, Long> {
 
         LocalDateTime getPaidAt();
     }
+
+    /** 订单报表导出：店铺指定时间范围内创建的子订单 */
+    @Query("""
+            select s from SubOrder s
+            where s.shop.id = :shopId
+              and s.createdAt >= :startAt
+              and s.createdAt < :endAt
+            order by s.id desc
+            """)
+    List<SubOrder> findForExport(@Param("shopId") Long shopId,
+                                 @Param("startAt") LocalDateTime startAt,
+                                 @Param("endAt") LocalDateTime endAt);
+
+    /** 结算账单导出：店铺指定时间范围内支付的子订单 */
+    @Query("""
+            select s from SubOrder s
+            where s.shop.id = :shopId
+              and s.order.paidAt >= :startAt
+              and s.order.paidAt < :endAt
+            order by s.order.paidAt asc, s.id asc
+            """)
+    List<SubOrder> findPaidForExport(@Param("shopId") Long shopId,
+                                     @Param("startAt") LocalDateTime startAt,
+                                     @Param("endAt") LocalDateTime endAt);
 }

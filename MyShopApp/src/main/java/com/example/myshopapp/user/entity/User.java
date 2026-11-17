@@ -49,6 +49,10 @@ public class User {
     @Column(length = 20)
     private String phone;
 
+    /** 邮箱：用于找回密码，可空但填写时全局唯一 */
+    @Column(unique = true, length = 100)
+    private String email;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private UserStatus status = UserStatus.ACTIVE;

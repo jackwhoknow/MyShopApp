@@ -22,6 +22,7 @@ const form = reactive({
   thresholdAmount: 100,
   discountAmount: 10,
   totalCount: 100,
+  pointsPrice: 0,
   dateRange: [] as string[]
 })
 
@@ -45,6 +46,7 @@ function openCreate() {
   form.thresholdAmount = 100
   form.discountAmount = 10
   form.totalCount = 100
+  form.pointsPrice = 0
   form.dateRange = []
   createVisible.value = true
 }
@@ -78,6 +80,7 @@ async function submitCreate() {
       thresholdAmount: form.thresholdAmount,
       discountAmount: form.discountAmount,
       totalCount: form.totalCount,
+      pointsPrice: Number(form.pointsPrice) || 0,
       startAt: form.dateRange[0],
       endAt: form.dateRange[1]
     })
@@ -170,6 +173,10 @@ onMounted(load)
         <el-form-item label="发放数量" required>
           <el-input-number v-model="form.totalCount" :min="1" :step="10" />
           <span class="unit">张</span>
+        </el-form-item>
+        <el-form-item label="积分兑换">
+          <el-input-number v-model="form.pointsPrice" :min="0" :step="100" />
+          <span class="unit">积分（0 表示不参与）</span>
         </el-form-item>
         <el-form-item label="有效期" required>
           <el-date-picker

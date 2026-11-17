@@ -75,7 +75,8 @@ public class AsyncOrderService {
         try {
             rabbitTemplate.convertAndSend(OrderMqConfig.CREATE_EXCHANGE, OrderMqConfig.CREATE_ROUTING_KEY,
                     new OrderCreateMessage(requestId, userId, request.addressId(), request.remark(),
-                            snapshot.cartItemIds(), request.userCouponIds(), snapshot.quantities()));
+                            snapshot.cartItemIds(), request.userCouponIds(), request.points(),
+                            snapshot.quantities()));
         } catch (RuntimeException e) {
             // 投递失败必须把预扣的库存还回去，否则库存会被长期占用
             stockService.restore(snapshot.quantities());

@@ -3,12 +3,14 @@ package com.example.myshopapp.review;
 import com.example.myshopapp.common.api.ApiResponse;
 import com.example.myshopapp.common.api.PageResult;
 import com.example.myshopapp.common.security.LoginUser;
+import com.example.myshopapp.review.dto.ReviewAppendRequest;
 import com.example.myshopapp.review.dto.ReviewRequest;
 import com.example.myshopapp.review.dto.ReviewVO;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -36,5 +38,13 @@ public class ReviewController {
                                                   @RequestParam(defaultValue = "0") int page,
                                                   @RequestParam(defaultValue = "20") int size) {
         return ApiResponse.ok(reviewService.listMine(loginUser.id(), page, size));
+    }
+
+    /** 追评：仅本人评价、且只能追评一次 */
+    @PostMapping("/{id}/append")
+    public ApiResponse<ReviewVO> append(@AuthenticationPrincipal LoginUser loginUser,
+                                        @PathVariable Long id,
+                                        @Valid @RequestBody ReviewAppendRequest request) {
+        return ApiResponse.ok(reviewService.append(loginUser.id(), id, request));
     }
 }

@@ -15,5 +15,11 @@ export interface ProductQuery {
 
 export const productApi = {
   list: (params: ProductQuery) => http.get<PageResult<ProductListItem>>('/api/products', { params }),
-  detail: (id: number) => http.get<ProductDetail>(`/api/products/${id}`)
+  detail: (id: number) => http.get<ProductDetail>(`/api/products/${id}`),
+  /** 相关商品：同分类热销 */
+  related: (id: number, limit = 8) =>
+    http.get<ProductListItem[]>(`/api/products/${id}/related`, { params: { limit } }),
+  /** 首页推荐：全站热销 */
+  recommended: (limit = 8) =>
+    http.get<ProductListItem[]>('/api/products/recommended', { params: { limit } })
 }

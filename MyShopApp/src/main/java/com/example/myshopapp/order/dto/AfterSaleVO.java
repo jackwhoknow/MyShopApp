@@ -24,6 +24,7 @@ public record AfterSaleVO(
         String buyerUsername,
         BigDecimal amount,
         String reason,
+        List<String> evidenceImages,
         String type,
         String status,
         String merchantRemark,
@@ -56,6 +57,10 @@ public record AfterSaleVO(
                 subOrder.getOrder().getUser().getUsername(),
                 afterSale.getAmount(),
                 afterSale.getReason(),
+                afterSale.getEvidenceImages() == null || afterSale.getEvidenceImages().isBlank()
+                        ? List.of()
+                        : java.util.Arrays.stream(afterSale.getEvidenceImages().split(","))
+                                .filter(value -> !value.isBlank()).toList(),
                 afterSale.getType() == null ? "REFUND_ONLY" : afterSale.getType().name(),
                 afterSale.getStatus().name(),
                 afterSale.getMerchantRemark(),

@@ -2,6 +2,7 @@
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import * as echarts from 'echarts'
 import { merchantStatsApi } from '@/api/merchantStats'
+import { reportApi } from '@/api/report'
 import type { MerchantStats } from '@/types'
 
 const days = ref(7)
@@ -119,6 +120,8 @@ onBeforeUnmount(() => {
           <el-radio-button :value="30">近 30 天</el-radio-button>
         </el-radio-group>
         <el-button size="small" :loading="loading" @click="load">刷新</el-button>
+        <el-button size="small" @click="reportApi.exportOrders()">导出订单</el-button>
+        <el-button size="small" @click="reportApi.exportSettlements()">导出结算</el-button>
       </div>
     </div>
 

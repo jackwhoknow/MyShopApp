@@ -57,6 +57,10 @@ public class Coupon {
     @Column(nullable = false)
     private int claimedCount;
 
+    /** 积分兑换所需积分，0 表示不可用积分兑换 */
+    @Column(nullable = false)
+    private int pointsPrice = 0;
+
     @Column(nullable = false)
     private LocalDateTime startAt;
 

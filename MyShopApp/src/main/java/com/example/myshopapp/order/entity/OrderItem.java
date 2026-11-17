@@ -41,6 +41,9 @@ public class OrderItem {
     @Column(nullable = false)
     private Long skuId;
 
+    /** 秒杀活动 id，普通订单为空 */
+    private Long seckillActivityId;
+
     @Column(nullable = false, length = 100)
     private String productName;
 

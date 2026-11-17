@@ -40,13 +40,20 @@ function handleCommand(command: string) {
 
         <nav class="header-nav">
           <router-link to="/">首页</router-link>
+          <router-link to="/seckill">限时秒杀</router-link>
           <router-link to="/orders">我的订单</router-link>
           <router-link to="/coupons">优惠券</router-link>
+          <router-link to="/points">我的积分</router-link>
           <router-link to="/favorites">我的收藏</router-link>
           <router-link to="/followed-shops">我的关注</router-link>
           <router-link to="/addresses">收货地址</router-link>
+          <router-link to="/support">在线客服</router-link>
           <router-link v-if="auth.isMerchant" to="/merchant/stats">商家看板</router-link>
+          <router-link v-if="auth.isMerchant" to="/merchant/settlement">商家结算</router-link>
+          <router-link v-if="auth.isMerchant" to="/merchant/promotions">满减活动</router-link>
+          <router-link v-if="auth.isMerchant" to="/merchant/support">客服消息</router-link>
           <router-link v-if="auth.isMerchant" to="/merchant/coupons">优惠券管理</router-link>
+          <router-link v-if="auth.isMerchant" to="/merchant/seckill">秒杀活动</router-link>
           <router-link v-if="auth.isMerchant" to="/merchant/products">商家商品</router-link>
           <router-link v-if="auth.isMerchant" to="/merchant/inventory">库存预警</router-link>
           <router-link v-if="auth.isMerchant" to="/merchant/orders">商家订单</router-link>
@@ -58,9 +65,11 @@ function handleCommand(command: string) {
           <router-link v-if="auth.isAdmin" to="/admin/products">商品审核</router-link>
           <router-link v-if="auth.isAdmin" to="/admin/orders">订单管理</router-link>
           <router-link v-if="auth.isAdmin" to="/admin/after-sales">售后监管</router-link>
+          <router-link v-if="auth.isAdmin" to="/admin/support">平台客服</router-link>
           <router-link v-if="auth.isAdmin" to="/admin/categories">分类管理</router-link>
           <router-link v-if="auth.isAdmin" to="/admin/users">用户管理</router-link>
           <router-link v-if="auth.isAdmin" to="/admin/invoices">发票管理</router-link>
+          <router-link v-if="auth.isAdmin" to="/admin/settlements">结算审核</router-link>
           <router-link v-if="auth.isAdmin" to="/admin/reviews">评价审核</router-link>
           <router-link v-if="auth.isAdmin" to="/admin/coupons">平台券</router-link>
           <router-link v-if="auth.isAdmin" to="/admin/audit-logs">操作审计</router-link>
@@ -100,16 +109,30 @@ function handleCommand(command: string) {
                   <el-dropdown-item command="profile">个人中心</el-dropdown-item>
                   <el-dropdown-item command="orders">我的订单</el-dropdown-item>
                   <el-dropdown-item command="coupons">优惠券</el-dropdown-item>
+                  <el-dropdown-item command="points">我的积分</el-dropdown-item>
                   <el-dropdown-item command="favorites">我的收藏</el-dropdown-item>
                   <el-dropdown-item command="followed-shops">我的关注</el-dropdown-item>
                   <el-dropdown-item command="history">最近浏览</el-dropdown-item>
                   <el-dropdown-item command="notifications">消息通知</el-dropdown-item>
                   <el-dropdown-item command="addresses">收货地址</el-dropdown-item>
+                  <el-dropdown-item command="support">在线客服</el-dropdown-item>
                   <el-dropdown-item v-if="auth.isMerchant" command="merchant/stats" divided>
                     商家看板
                   </el-dropdown-item>
+                  <el-dropdown-item v-if="auth.isMerchant" command="merchant/settlement">
+                    商家结算
+                  </el-dropdown-item>
+                  <el-dropdown-item v-if="auth.isMerchant" command="merchant/promotions">
+                    满减活动
+                  </el-dropdown-item>
+                  <el-dropdown-item v-if="auth.isMerchant" command="merchant/support">
+                    客服消息
+                  </el-dropdown-item>
                   <el-dropdown-item v-if="auth.isMerchant" command="merchant/coupons">
                     优惠券管理
+                  </el-dropdown-item>
+                  <el-dropdown-item v-if="auth.isMerchant" command="merchant/seckill">
+                    秒杀活动
                   </el-dropdown-item>
                   <el-dropdown-item v-if="auth.isMerchant" command="merchant/products">
                     商家商品
@@ -144,6 +167,9 @@ function handleCommand(command: string) {
                   <el-dropdown-item v-if="auth.isAdmin" command="admin/after-sales">
                     售后监管
                   </el-dropdown-item>
+                  <el-dropdown-item v-if="auth.isAdmin" command="admin/support">
+                    平台客服
+                  </el-dropdown-item>
                   <el-dropdown-item v-if="auth.isAdmin" command="admin/categories">
                     分类管理
                   </el-dropdown-item>
@@ -152,6 +178,9 @@ function handleCommand(command: string) {
                   </el-dropdown-item>
                   <el-dropdown-item v-if="auth.isAdmin" command="admin/invoices">
                     发票管理
+                  </el-dropdown-item>
+                  <el-dropdown-item v-if="auth.isAdmin" command="admin/settlements">
+                    结算审核
                   </el-dropdown-item>
                   <el-dropdown-item v-if="auth.isAdmin" command="admin/reviews">
                     评价审核

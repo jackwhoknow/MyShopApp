@@ -33,6 +33,10 @@ public record ProductCreateRequest(
         @Size(max = 255, message = "主图地址不能超过 255 个字符")
         String mainImage,
 
+        /** 每个用户限购数量，0 或不传表示不限购 */
+        @Min(value = 0, message = "限购数量不能为负数")
+        Integer purchaseLimit,
+
         @NotEmpty(message = "至少定义一个规格")
         @Valid
         List<SpecRequest> specs,

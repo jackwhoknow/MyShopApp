@@ -48,6 +48,15 @@ public class UserService {
         if (request.phone() != null) {
             user.setPhone(StringUtils.hasText(request.phone()) ? request.phone().trim() : null);
         }
+        if (request.email() != null) {
+            String email = StringUtils.hasText(request.email())
+                    ? request.email().trim().toLowerCase() : null;
+            if (email != null && !email.equals(user.getEmail())
+                    && userRepository.existsByEmailAndDeletedFalse(email)) {
+                throw new BusinessException(ErrorCode.CONFLICT, "邮箱已被使用");
+            }
+            user.setEmail(email);
+        }
         userRepository.save(user);
         return UserVO.from(user);
     }

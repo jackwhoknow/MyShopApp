@@ -7,6 +7,7 @@ import com.example.myshopapp.order.entity.OrderItem;
 import com.example.myshopapp.order.entity.SubOrder;
 import com.example.myshopapp.order.entity.SubOrderStatus;
 import com.example.myshopapp.order.repository.OrderItemRepository;
+import com.example.myshopapp.review.dto.ReviewAppendRequest;
 import com.example.myshopapp.review.dto.ReviewRequest;
 import com.example.myshopapp.review.dto.ReviewVO;
 import com.example.myshopapp.review.entity.Review;
@@ -14,6 +15,7 @@ import com.example.myshopapp.review.entity.ReviewStatus;
 import com.example.myshopapp.review.repository.ReviewRepository;
 import com.example.myshopapp.shop.entity.Shop;
 import com.example.myshopapp.shop.repository.ShopRepository;
+import com.example.myshopapp.upload.ImageUrlPolicy;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -33,6 +35,7 @@ public class ReviewService {
     private final OrderItemRepository orderItemRepository;
     private final ShopRepository shopRepository;
     private final ReviewContentFilter contentFilter;
+    private final ImageUrlPolicy imageUrlPolicy;
 
     /** 买家评价：订单商品必须属于本人、所在子订单已完成、且未评价过 */
     @Transactional
@@ -65,13 +68,38 @@ public class ReviewService {
         return ReviewVO.from(reviewRepository.save(review));
     }
 
+    /** 追评：只能追加自己的评价，且每笔评价只能追评一次；屏蔽词追评转人工审核 */
+    @Transactional
+    public ReviewVO append(Long userId, Long reviewId, ReviewAppendRequest request) {
+        Review review = reviewRepository.findByIdAndUserId(reviewId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "评价不存在"));
+        if (review.getStatus() == ReviewStatus.REJECTED) {
+            throw new BusinessException(ErrorCode.CONFLICT, "该评价已被驳回，不能追评");
+        }
+        if (review.getAppendedAt() != null) {
+            throw new BusinessException(ErrorCode.CONFLICT, "该评价已经追评过了");
+        }
+        String content = request.content() == null ? null : request.content().trim();
+        String images = normalizeImages(request.images());
+        if ((content == null || content.isBlank()) && images == null) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "请填写追评内容或上传图片");
+        }
+        review.setAppendContent(content == null || content.isBlank() ? null : content);
+        review.setAppendImages(images);
+        review.setAppendedAt(LocalDateTime.now());
+        if (contentFilter.containsSensitive(content)) {
+            review.setStatus(ReviewStatus.PENDING);
+        }
+        return ReviewVO.from(review);
+    }
+
     /** 只接受本站上传接口返回的图片地址，避免把外部链接写入评价 */
     private String normalizeImages(java.util.List<String> images) {
         if (images == null || images.isEmpty()) {
             return null;
         }
         java.util.List<String> valid = images.stream()
-                .filter(url -> url != null && url.startsWith("/uploads/") && url.length() <= 255)
+                .filter(imageUrlPolicy::allowed)
                 .distinct()
                 .toList();
         return valid.isEmpty() ? null : String.join(",", valid);

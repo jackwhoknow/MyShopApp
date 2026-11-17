@@ -83,6 +83,16 @@ public class Review {
 
     private LocalDateTime repliedAt;
 
+    /** 追评内容，只允许追加一次 */
+    @Column(length = 500)
+    private String appendContent;
+
+    /** 追评图片，多张以英文逗号分隔 */
+    @Column(length = 1000)
+    private String appendImages;
+
+    private LocalDateTime appendedAt;
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;

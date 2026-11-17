@@ -22,8 +22,15 @@ const registerForm = reactive({
   username: '',
   password: '',
   nickname: '',
-  phone: ''
+  phone: '',
+  email: ''
 })
+
+/** 忘记密码：邮箱验证码重置 */
+const resetVisible = ref(false)
+const resetLoading = ref(false)
+const codeSending = ref(false)
+const resetForm = reactive({ email: '', code: '', newPassword: '' })
 
 /** 图形验证码，登录页进入时获取，登录失败或手动点击时刷新 */
 const captchaId = ref('')
@@ -48,7 +55,8 @@ const registerRules: FormRules = {
       trigger: 'blur'
     }
   ],
-  phone: [{ pattern: /^$|^1[3-9]\d{9}$/, message: '手机号格式不正确', trigger: 'blur' }]
+  phone: [{ pattern: /^$|^1[3-9]\d{9}$/, message: '手机号格式不正确', trigger: 'blur' }],
+  email: [{ type: 'email', message: '邮箱格式不正确', trigger: 'blur' }]
 }
 
 async function refreshCaptcha() {
@@ -120,6 +128,40 @@ async function submitRegister() {
 }
 
 onMounted(refreshCaptcha)
+
+/** 发送找回密码验证码 */
+async function sendResetCode() {
+  if (!resetForm.email) {
+    ElMessage.warning('请先输入邮箱')
+    return
+  }
+  codeSending.value = true
+  try {
+    await authApi.sendResetCode(resetForm.email)
+    ElMessage.success('验证码已发送，请查收邮箱（本地环境请查看后端日志）')
+  } finally {
+    codeSending.value = false
+  }
+}
+
+/** 提交重置密码 */
+async function submitReset() {
+  if (!resetForm.email || !resetForm.code || !resetForm.newPassword) {
+    ElMessage.warning('请填写完整信息')
+    return
+  }
+  resetLoading.value = true
+  try {
+    await authApi.resetPassword({ ...resetForm })
+    ElMessage.success('密码已重置，请使用新密码登录')
+    loginForm.username = ''
+    resetVisible.value = false
+    resetForm.code = ''
+    resetForm.newPassword = ''
+  } finally {
+    resetLoading.value = false
+  }
+}
 </script>
 
 <template>
@@ -152,6 +194,9 @@ onMounted(refreshCaptcha)
               </div>
             </el-form-item>
             <el-button type="primary" class="submit" :loading="loading" @click="submitLogin">登录</el-button>
+            <p class="forgot">
+              <el-link type="info" :underline="false" @click="resetVisible = true">忘记密码？</el-link>
+            </p>
             <p class="hint">买家：buyer02 / buyer123 &nbsp;·&nbsp; 商家：merchant01 / merchant123</p>
           </el-form>
         </el-tab-pane>
@@ -170,6 +215,9 @@ onMounted(refreshCaptcha)
             <el-form-item label="手机号" prop="phone">
               <el-input v-model="registerForm.phone" placeholder="选填" maxlength="11" />
             </el-form-item>
+            <el-form-item label="邮箱" prop="email">
+              <el-input v-model="registerForm.email" placeholder="选填，用于找回密码" maxlength="100" />
+            </el-form-item>
             <el-button type="primary" class="submit" :loading="loading" @click="submitRegister">注册</el-button>
           </el-form>
         </el-tab-pane>
@@ -177,6 +225,32 @@ onMounted(refreshCaptcha)
 
       <router-link to="/" class="back">先去逛逛 →</router-link>
     </div>
+
+    <el-dialog v-model="resetVisible" title="找回密码" width="420px">
+      <el-form label-position="top">
+        <el-form-item label="注册邮箱">
+          <el-input v-model="resetForm.email" placeholder="请输入注册时填写的邮箱" maxlength="100" />
+        </el-form-item>
+        <el-form-item label="邮箱验证码">
+          <div class="captcha-row">
+            <el-input v-model="resetForm.code" placeholder="6 位验证码" maxlength="10" />
+            <el-button :loading="codeSending" @click="sendResetCode">获取验证码</el-button>
+          </div>
+        </el-form-item>
+        <el-form-item label="新密码">
+          <el-input
+            v-model="resetForm.newPassword"
+            type="password"
+            show-password
+            placeholder="8-30 位，需包含字母和数字"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="resetVisible = false">取消</el-button>
+        <el-button type="primary" :loading="resetLoading" @click="submitReset">确认重置</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -246,6 +320,11 @@ onMounted(refreshCaptcha)
 .submit {
   width: 100%;
   margin-top: 6px;
+}
+
+.forgot {
+  margin: 8px 0 0;
+  text-align: center;
 }
 
 .hint {

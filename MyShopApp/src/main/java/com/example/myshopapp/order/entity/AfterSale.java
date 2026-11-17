@@ -60,6 +60,10 @@ public class AfterSale {
     @Column(nullable = false, length = 200)
     private String reason;
 
+    /** 买家上传的凭证图片，多张以英文逗号分隔 */
+    @Column(length = 1000)
+    private String evidenceImages;
+
     /** 售后类型：历史数据可能为空，按仅退款处理 */
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
@@ -92,6 +96,9 @@ public class AfterSale {
     private LocalDateTime receivedAt;
 
     private LocalDateTime handledAt;
+
+    /** 系统超时自动关闭的时间 */
+    private LocalDateTime closedAt;
 
     @CreationTimestamp
     @Column(updatable = false)

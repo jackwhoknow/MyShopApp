@@ -11,6 +11,9 @@ export interface ReviewPayload {
 
 export const reviewApi = {
   create: (data: ReviewPayload) => http.post<Review>('/api/reviews', data),
+  /** 追评：每笔评价只能追评一次 */
+  append: (id: number, data: { content?: string; images?: string[] }) =>
+    http.post<Review>(`/api/reviews/${id}/append`, data),
   mine: (params?: { page?: number; size?: number }) =>
     http.get<PageResult<Review>>('/api/reviews/mine', { params }),
   /** 商品页评价，只返回审核通过的评价 */

@@ -17,6 +17,8 @@ export interface UserInfo {
   username: string
   nickname?: string
   phone?: string
+  /** 找回密码使用的邮箱 */
+  email?: string
   roles: string[]
 }
 
@@ -98,6 +100,8 @@ export interface ProductDetail {
   minPrice: number
   maxPrice: number
   sales: number
+  /** 每人限购数量，0 表示不限购 */
+  purchaseLimit?: number
   status: string
   shopId: number
   shopName: string
@@ -146,11 +150,37 @@ export interface CartItem {
   skuDesc: string
   image?: string
   price: number
+  /** SKU 原价，命中秒杀活动时与 price 不同 */
+  originalPrice?: number
   quantity: number
   stock: number
   available: boolean
+  /** 是否按秒杀活动价展示 */
+  seckill?: boolean
   shopId: number
   shopName: string
+}
+
+/** 秒杀活动：state 为 NOT_STARTED / RUNNING / SOLD_OUT / EXPIRED / DISABLED */
+export interface SeckillActivity {
+  id: number
+  shopId: number
+  shopName: string
+  productId: number
+  productName: string
+  skuId: number
+  skuDesc: string
+  image?: string
+  originalPrice: number
+  activityPrice: number
+  totalStock: number
+  soldCount: number
+  remainingStock: number
+  perUserLimit: number
+  startAt: string
+  endAt: string
+  enabled: boolean
+  state: string
 }
 
 export interface Address {
@@ -185,6 +215,10 @@ export interface SubOrder {
   totalAmount: number
   discountAmount: number
   couponTitle?: string
+  /** 满减活动优惠金额 */
+  promotionDiscount?: number
+  /** 命中的满减活动名称 */
+  promotionTitle?: string
   status: string
   shipCompany?: string
   trackingNo?: string
@@ -266,6 +300,10 @@ export interface Review {
   content?: string
   /** 评价图片地址列表，最多 6 张 */
   images?: string[]
+  /** 追评内容与图片 */
+  appendContent?: string
+  appendImages?: string[]
+  appendedAt?: string
   reply?: string
   repliedAt?: string
   /** 审核状态：PENDING 待审核、APPROVED 通过、REJECTED 驳回 */
@@ -278,6 +316,12 @@ export interface Order {
   id: number
   orderNo: string
   totalAmount: number
+  /** 下单时使用的积分 */
+  pointsUsed: number
+  /** 积分抵扣的金额 */
+  pointsDiscount: number
+  /** 支付成功返还的积分 */
+  pointsEarned: number
   status: string
   receiverName: string
   receiverPhone: string
@@ -286,6 +330,61 @@ export interface Order {
   createdAt: string
   paidAt?: string
   subOrders: SubOrder[]
+}
+
+/** 积分账户概览 */
+export interface PointAccount {
+  balance: number
+  totalEarned: number
+  totalSpent: number
+  /** 会员等级编码：BRONZE / SILVER / GOLD / PLATINUM / DIAMOND */
+  level: string
+  levelName: string
+  nextLevelName?: string | null
+  pointsToNext?: number | null
+}
+
+/** 每日签到状态 */
+export interface CheckinStatus {
+  checkedInToday: boolean
+  consecutiveDays: number
+  todayPoints: number
+  nextPoints: number
+}
+
+/** 积分兑换券 */
+export interface PointCoupon {
+  id: number
+  shopId?: number | null
+  shopName?: string | null
+  platform: boolean
+  title: string
+  thresholdAmount: number
+  discountAmount: number
+  pointsPrice: number
+  remainingCount: number
+  endAt: string
+  exchanged: boolean
+}
+
+/** 积分流水，changeAmount 正数为获得、负数为扣减 */
+export interface PointTransaction {
+  id: number
+  changeAmount: number
+  balanceAfter: number
+  /** ORDER_DEDUCT / ORDER_EARN / ORDER_CANCEL_RETURN / ORDER_REFUND */
+  type: string
+  orderId?: number
+  orderNo?: string
+  remark?: string
+  createdAt: string
+}
+
+/** 结算页积分抵扣试算 */
+export interface PointQuote {
+  balance: number
+  maxDeductiblePoints: number
+  maxDeductibleAmount: number
 }
 
 export interface ReorderSkippedItem {
@@ -313,6 +412,8 @@ export interface AfterSale {
   buyerUsername: string
   amount: number
   reason: string
+  /** 买家上传的凭证图片 */
+  evidenceImages?: string[]
   type: string
   status: string
   merchantRemark?: string
@@ -436,6 +537,8 @@ export interface MerchantCoupon {
   discountAmount: number
   totalCount: number
   claimedCount: number
+  /** 积分兑换所需积分，0 表示不参与积分兑换 */
+  pointsPrice: number
   usedCount: number
   remainingCount: number
   startAt: string
@@ -673,5 +776,94 @@ export interface AdminAuditLog {
   success: boolean
   status: number
   durationMs: number
+  createdAt: string
+}
+
+/** 商家结算概览 */
+export interface SettlementSummary {
+  totalIncome: number
+  refundedAmount: number
+  withdrawnAmount: number
+  frozenAmount: number
+  availableAmount: number
+  pendingWithdrawalCount: number
+  totalWithdrawalCount: number
+}
+
+/** 结算账单明细，settleable 为 true 表示计入可结算收入 */
+export interface SettlementBill {
+  subOrderId: number
+  subOrderNo: string
+  orderNo: string
+  amount: number
+  status: string
+  paidAt?: string
+  completedAt?: string
+  settleable: boolean
+}
+
+/** 提现申请，状态 PENDING / APPROVED / REJECTED / PAID */
+export interface WithdrawalRequest {
+  id: number
+  withdrawalNo: string
+  shopId: number
+  shopName: string
+  amount: number
+  accountName: string
+  accountNo: string
+  bankName: string
+  status: string
+  adminRemark?: string
+  createdAt: string
+  reviewedAt?: string
+  paidAt?: string
+}
+
+/** 平台提现审核概览 */
+export interface AdminSettlementSummary {
+  pendingCount: number
+  pendingAmount: number
+  approvedCount: number
+  approvedAmount: number
+  paidCount: number
+  paidAmount: number
+}
+
+/** 店铺满减活动 */
+export interface ShopPromotion {
+  id: number
+  shopId: number
+  shopName: string
+  title: string
+  thresholdAmount: number
+  reduceAmount: number
+  startAt: string
+  endAt: string
+  enabled: boolean
+  running: boolean
+}
+
+/** 客服会话 */
+export interface SupportConversation {
+  id: number
+  userId: number
+  userName: string
+  shopId: number
+  shopName: string
+  orderId?: number
+  status: string
+  lastMessagePreview?: string
+  lastMessageAt?: string
+  unread: number
+}
+
+/** 客服消息 */
+export interface SupportMessage {
+  id: number
+  conversationId: number
+  senderType: 'USER' | 'SHOP' | 'PLATFORM'
+  senderId: number
+  content: string
+  readFlag: boolean
   createdAt: string
 }

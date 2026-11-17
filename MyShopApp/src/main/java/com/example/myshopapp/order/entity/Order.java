@@ -63,6 +63,18 @@ public class Order {
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal totalAmount;
 
+    /** 下单时使用的积分数量 */
+    @Column(nullable = false)
+    private int pointsUsed = 0;
+
+    /** 积分抵扣的金额 */
+    @Column(nullable = false, precision = 10, scale = 2)
+    private BigDecimal pointsDiscount = BigDecimal.ZERO;
+
+    /** 支付成功返还的积分 */
+    @Column(nullable = false)
+    private int pointsEarned = 0;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private OrderStatus status = OrderStatus.PENDING_PAYMENT;

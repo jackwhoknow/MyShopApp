@@ -72,6 +72,10 @@ public class Product {
     @Column(precision = 10, scale = 2)
     private BigDecimal maxPrice;
 
+    /** 每个用户限购数量，0 表示不限购 */
+    @Column(nullable = false)
+    private int purchaseLimit = 0;
+
     @Column(nullable = false)
     private int sales = 0;
 

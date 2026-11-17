@@ -36,6 +36,21 @@ public interface CouponRepository extends JpaRepository<Coupon, Long> {
     @Query("select c from Coupon c where c.id = :id")
     Optional<Coupon> findByIdForUpdate(@Param("id") Long id);
 
+    /** 积分兑换专区：设置了兑换积分且在有效期内、有剩余的券 */
+    @Query("""
+            select c from Coupon c
+            left join c.shop s
+            where c.pointsPrice > 0
+              and c.enabled = true
+              and c.startAt <= :now
+              and c.endAt > :now
+              and c.claimedCount < c.totalCount
+              and (s is null or s.status = :shopStatus)
+            order by c.pointsPrice asc, c.id desc
+            """)
+    List<Coupon> findPointsExchangeable(@Param("now") LocalDateTime now,
+                                        @Param("shopStatus") ShopStatus shopStatus);
+
     List<Coupon> findByShopIdOrderByIdDesc(Long shopId);
 
     /** 平台券列表（shop 为空） */

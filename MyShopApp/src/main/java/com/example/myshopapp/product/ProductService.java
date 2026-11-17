@@ -77,6 +77,7 @@ public class ProductService {
         product.setSubtitle(request.subtitle());
         product.setDescription(request.description());
         product.setMainImage(request.mainImage());
+        product.setPurchaseLimit(request.purchaseLimit() == null ? 0 : request.purchaseLimit());
         // 新建即提交审核，管理员通过后才对前台可见
         product.setStatus(ProductStatus.PENDING_REVIEW);
 
@@ -145,6 +146,9 @@ public class ProductService {
         product.setSubtitle(request.subtitle());
         product.setDescription(request.description());
         product.setMainImage(request.mainImage());
+        if (request.purchaseLimit() != null) {
+            product.setPurchaseLimit(request.purchaseLimit());
+        }
 
         // 规格和 SKU 要么都不提交（只改基础信息），要么一起提交做全量替换
         if ((request.specs() == null) != (request.skus() == null)) {
@@ -366,6 +370,28 @@ public class ProductService {
         Page<Product> products = productRepository.searchPublicByShop(
                 shopId, ProductStatus.ON_SHELF, normalizeKeyword(keyword), pageable);
         return PageResult.of(products.map(ProductListItemVO::from));
+    }
+
+    /** 相关商品：同分类热销商品，最多 limit 个 */
+    @Transactional(readOnly = true)
+    public List<ProductListItemVO> related(Long productId, int limit) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "商品不存在"));
+        return productRepository.findRelated(ProductStatus.ON_SHELF, product.getCategory().getId(),
+                        productId, PageRequest.of(0, clampLimit(limit)))
+                .stream().map(ProductListItemVO::from).toList();
+    }
+
+    /** 首页推荐：全站热销商品 */
+    @Transactional(readOnly = true)
+    public List<ProductListItemVO> recommended(int limit) {
+        return productRepository.findRecommended(ProductStatus.ON_SHELF,
+                        PageRequest.of(0, clampLimit(limit)))
+                .stream().map(ProductListItemVO::from).toList();
+    }
+
+    private int clampLimit(int limit) {
+        return Math.max(1, Math.min(limit, 20));
     }
 
     /** 排序规则：默认按最新 id，销量、价格、上架时间 */

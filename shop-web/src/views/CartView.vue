@@ -81,13 +81,17 @@ function checkout() {
                   <div class="muted">{{ row.skuDesc }}</div>
                   <div class="muted">{{ row.shopName }}</div>
                   <el-tag v-if="!row.available" type="danger" size="small" effect="plain">库存不足</el-tag>
+                  <el-tag v-if="row.seckill" type="danger" size="small" effect="plain">秒杀价</el-tag>
                 </div>
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="单价" width="120">
+          <el-table-column label="单价" width="140">
             <template #default="{ row }">
-              <span class="price">¥{{ row.price.toFixed(2) }}</span>
+              <div class="price">¥{{ row.price.toFixed(2) }}</div>
+              <div v-if="row.seckill && row.originalPrice" class="original-price">
+                ¥{{ row.originalPrice.toFixed(2) }}
+              </div>
             </template>
           </el-table-column>
           <el-table-column label="数量" width="170">
@@ -181,6 +185,12 @@ function checkout() {
 
 .total {
   font-size: 22px;
+}
+
+.original-price {
+  color: #a8abb2;
+  font-size: 12px;
+  text-decoration: line-through;
 }
 
 .footer-actions {

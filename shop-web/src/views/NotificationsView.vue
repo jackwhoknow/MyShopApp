@@ -28,6 +28,9 @@ const TYPE_LABELS: Record<string, { text: string; type: 'primary' | 'success' | 
   AFTER_SALE_RETURN_SHIPPED: { text: '退货寄回', type: 'primary' },
   AFTER_SALE_REFUNDED: { text: '退款成功', type: 'success' },
   AFTER_SALE_PLATFORM_INTERVENED: { text: '平台介入', type: 'danger' },
+  WITHDRAWAL_APPROVED: { text: '提现通过', type: 'primary' },
+  WITHDRAWAL_REJECTED: { text: '提现驳回', type: 'danger' },
+  WITHDRAWAL_PAID: { text: '提现打款', type: 'success' },
   ADMIN_BROADCAST: { text: '平台公告', type: 'primary' }
 }
 

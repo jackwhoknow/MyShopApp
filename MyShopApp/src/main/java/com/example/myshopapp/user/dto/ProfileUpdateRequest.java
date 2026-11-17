@@ -11,6 +11,11 @@ public record ProfileUpdateRequest(
 
         /** 传空字符串表示清空手机号 */
         @Size(max = 20, message = "手机号长度不能超过 20")
-        String phone
+        String phone,
+
+        /** 传空字符串表示清空邮箱；填写后可用于找回密码 */
+        @jakarta.validation.constraints.Email(message = "邮箱格式不正确")
+        @Size(max = 100, message = "邮箱长度不能超过 100")
+        String email
 ) {
 }

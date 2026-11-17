@@ -4,6 +4,8 @@ import type { AfterSale, PageResult } from '@/types'
 export interface AfterSaleApplyPayload {
   subOrderId: number
   reason: string
+  /** 凭证图片地址，最多 6 张 */
+  evidenceImages?: string[]
 }
 
 export interface AfterSaleQuery {

@@ -21,9 +21,11 @@ import com.example.myshopapp.order.repository.SubOrderRepository;
 import com.example.myshopapp.order.seckill.SeckillStockService;
 import com.example.myshopapp.payment.PaymentService;
 import com.example.myshopapp.payment.dto.RefundResult;
+import com.example.myshopapp.points.PointService;
 import com.example.myshopapp.product.repository.ProductSkuRepository;
 import com.example.myshopapp.shop.entity.Shop;
 import com.example.myshopapp.shop.repository.ShopRepository;
+import com.example.myshopapp.upload.ImageUrlPolicy;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -54,6 +56,8 @@ public class AfterSaleService {
     private final NotificationService notificationService;
     private final PaymentService paymentService;
     private final SeckillStockService seckillStockService;
+    private final PointService pointService;
+    private final ImageUrlPolicy imageUrlPolicy;
 
     @Transactional
     public AfterSaleVO apply(Long userId, AfterSaleRequest request) {
@@ -76,6 +80,7 @@ public class AfterSaleService {
         afterSale.setShopId(subOrder.getShop().getId());
         afterSale.setAmount(subOrder.getTotalAmount());
         afterSale.setReason(request.reason().trim());
+        afterSale.setEvidenceImages(normalizeImages(request.evidenceImages()));
         afterSale.setType(type);
         afterSale.setStatus(AfterSaleStatus.PENDING);
 
@@ -270,6 +275,37 @@ public class AfterSaleService {
         return AfterSaleVO.from(afterSale);
     }
 
+    /**
+     * 系统超时关闭：待处理售后超过时限仍未处理时自动关闭，子订单恢复原状态。
+     */
+    @Transactional
+    public boolean autoCloseTimeout(Long afterSaleId, LocalDateTime cutoff) {
+        AfterSale afterSale = afterSaleRepository.findById(afterSaleId).orElse(null);
+        if (afterSale == null
+                || afterSale.getStatus() != AfterSaleStatus.PENDING
+                || afterSale.getCreatedAt() == null
+                || !afterSale.getCreatedAt().isBefore(cutoff)) {
+            return false;
+        }
+
+        SubOrder subOrder = afterSale.getSubOrder();
+        if (subOrder.getStatus() == SubOrderStatus.REFUNDING) {
+            subOrder.setStatus(resolveOriginalStatus(subOrder));
+        }
+        LocalDateTime now = LocalDateTime.now();
+        afterSale.setStatus(AfterSaleStatus.CLOSED);
+        afterSale.setClosedAt(now);
+        afterSale.setHandledAt(now);
+        afterSale.setMerchantRemark("商家超时未处理，系统自动关闭");
+
+        String content = "售后单 " + afterSale.getAfterSaleNo() + " 超过处理时限，系统已自动关闭";
+        notificationService.notify(afterSale.getUserId(), NotificationType.AFTER_SALE_AUTO_CLOSED,
+                "售后已自动关闭", content + "，如需继续处理请重新申请", "/orders/" + subOrder.getOrder().getId());
+        notificationService.notify(subOrder.getShop().getOwner().getId(),
+                NotificationType.AFTER_SALE_AUTO_CLOSED, "售后超时已自动关闭", content, "/merchant/after-sales");
+        return true;
+    }
+
     /** 退款完成通知买家：金额取子订单实付金额 */
     private void notifyRefunded(AfterSale afterSale, SubOrder subOrder) {
         notificationService.notify(
@@ -279,6 +315,18 @@ public class AfterSaleService {
                 "售后单 " + afterSale.getAfterSaleNo() + " 已退款 ¥"
                         + subOrder.getTotalAmount().toPlainString() + "，请注意查收",
                 "/orders/" + subOrder.getOrder().getId());
+    }
+
+    /** 售后凭证只接受本站上传接口返回的图片地址 */
+    private String normalizeImages(java.util.List<String> images) {
+        if (images == null || images.isEmpty()) {
+            return null;
+        }
+        java.util.List<String> valid = images.stream()
+                .filter(imageUrlPolicy::allowed)
+                .distinct()
+                .toList();
+        return valid.isEmpty() ? null : String.join(",", valid);
     }
 
     private AfterSaleType resolveType(SubOrderStatus status) {
@@ -333,12 +381,12 @@ public class AfterSaleService {
             afterSale.setHandledAt(LocalDateTime.now());
         }
 
-        if (order.getStatus() == OrderStatus.PAID) {
-            boolean allCancelled = order.getSubOrders().stream()
-                    .allMatch(sub -> sub.getStatus() == SubOrderStatus.CANCELLED);
-            if (allCancelled) {
-                order.setStatus(OrderStatus.CANCELLED);
-            }
+        boolean allCancelled = order.getSubOrders().stream()
+                .allMatch(sub -> sub.getStatus() == SubOrderStatus.CANCELLED);
+        if (allCancelled && order.getStatus() != OrderStatus.CANCELLED) {
+            order.setStatus(OrderStatus.CANCELLED);
+            // 整单退完：退回抵扣积分并扣回已赠送积分，部分退款不动积分
+            pointService.reverseOnFullRefund(order);
         }
     }
 

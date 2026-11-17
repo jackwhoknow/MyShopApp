@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 public interface ProductRepository extends JpaRepository<Product, Long> {
@@ -27,14 +28,20 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     @Query(value = """
             select p from Product p join fetch p.shop
             where p.status = :status
-              and (:keyword = '' or lower(p.name) like lower(concat('%', :keyword, '%')))
+              and (:keyword = ''
+                   or lower(p.name) like lower(concat('%', :keyword, '%'))
+                   or lower(coalesce(p.subtitle, '')) like lower(concat('%', :keyword, '%'))
+                   or lower(coalesce(p.description, '')) like lower(concat('%', :keyword, '%')))
               and (:minPrice is null or p.maxPrice >= :minPrice)
               and (:maxPrice is null or p.minPrice <= :maxPrice)
             """,
             countQuery = """
             select count(p) from Product p
             where p.status = :status
-              and (:keyword = '' or lower(p.name) like lower(concat('%', :keyword, '%')))
+              and (:keyword = ''
+                   or lower(p.name) like lower(concat('%', :keyword, '%'))
+                   or lower(coalesce(p.subtitle, '')) like lower(concat('%', :keyword, '%'))
+                   or lower(coalesce(p.description, '')) like lower(concat('%', :keyword, '%')))
               and (:minPrice is null or p.maxPrice >= :minPrice)
               and (:maxPrice is null or p.minPrice <= :maxPrice)
             """)
@@ -48,7 +55,10 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             select p from Product p join fetch p.shop
             where p.status = :status
               and p.category.id in :categoryIds
-              and (:keyword = '' or lower(p.name) like lower(concat('%', :keyword, '%')))
+              and (:keyword = ''
+                   or lower(p.name) like lower(concat('%', :keyword, '%'))
+                   or lower(coalesce(p.subtitle, '')) like lower(concat('%', :keyword, '%'))
+                   or lower(coalesce(p.description, '')) like lower(concat('%', :keyword, '%')))
               and (:minPrice is null or p.maxPrice >= :minPrice)
               and (:maxPrice is null or p.minPrice <= :maxPrice)
             """,
@@ -56,7 +66,10 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             select count(p) from Product p
             where p.status = :status
               and p.category.id in :categoryIds
-              and (:keyword = '' or lower(p.name) like lower(concat('%', :keyword, '%')))
+              and (:keyword = ''
+                   or lower(p.name) like lower(concat('%', :keyword, '%'))
+                   or lower(coalesce(p.subtitle, '')) like lower(concat('%', :keyword, '%'))
+                   or lower(coalesce(p.description, '')) like lower(concat('%', :keyword, '%')))
               and (:minPrice is null or p.maxPrice >= :minPrice)
               and (:maxPrice is null or p.minPrice <= :maxPrice)
             """)
@@ -66,6 +79,39 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
                                            @Param("minPrice") BigDecimal minPrice,
                                            @Param("maxPrice") BigDecimal maxPrice,
                                            Pageable pageable);
+
+    /** 搜索联想：按商品名匹配并按销量排序 */
+    @Query("""
+            select p.name from Product p
+            where p.status = :status
+              and lower(p.name) like lower(concat('%', :keyword, '%'))
+            group by p.name
+            order by max(p.sales) desc
+            """)
+    List<String> suggestNames(@Param("status") ProductStatus status,
+                              @Param("keyword") String keyword,
+                              Pageable pageable);
+
+    /** 相关商品：同分类下销量最高的已上架商品 */
+    @Query("""
+            select p from Product p join fetch p.shop
+            where p.status = :status
+              and p.category.id = :categoryId
+              and p.id <> :excludeId
+            order by p.sales desc, p.id desc
+            """)
+    List<Product> findRelated(@Param("status") ProductStatus status,
+                              @Param("categoryId") Long categoryId,
+                              @Param("excludeId") Long excludeId,
+                              Pageable pageable);
+
+    /** 首页推荐：全站销量最高的已上架商品 */
+    @Query("""
+            select p from Product p join fetch p.shop
+            where p.status = :status
+            order by p.sales desc, p.id desc
+            """)
+    List<Product> findRecommended(@Param("status") ProductStatus status, Pageable pageable);
 
     /** 商家后台商品列表，包含草稿和已下架商品 */
     @Query(value = """

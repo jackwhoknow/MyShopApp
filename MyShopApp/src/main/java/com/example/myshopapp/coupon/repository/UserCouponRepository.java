@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -38,6 +39,18 @@ public interface UserCouponRepository extends JpaRepository<UserCoupon, Long> {
 
     /** 订单取消时按订单找回用掉的券 */
     List<UserCoupon> findByOrderIdAndStatus(Long orderId, UserCouponStatus status);
+
+    /** 即将到期且未使用的券，用于到期提醒 */
+    @Query("""
+            select uc from UserCoupon uc
+            join fetch uc.coupon c
+            where uc.status = :status
+              and c.endAt > :now
+              and c.endAt <= :deadline
+            """)
+    List<UserCoupon> findExpiring(@Param("status") UserCouponStatus status,
+                                  @Param("now") LocalDateTime now,
+                                  @Param("deadline") LocalDateTime deadline);
 
     /** 商家券列表统计已使用数量 */
     @Query("""
