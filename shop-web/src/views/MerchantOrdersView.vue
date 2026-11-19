@@ -135,12 +135,16 @@ function openBatch() {
 
 async function submitBatch() {
   if (!selectedIds.value.length) return
+  if (!batchForm.shipCompany.trim() || !batchForm.trackingNo.trim()) {
+    ElMessage.warning('请填写真实的物流公司与运单号')
+    return
+  }
   batchSubmitting.value = true
   try {
     const result = await merchantOrderApi.batchShip({
       subOrderIds: selectedIds.value,
-      shipCompany: batchForm.shipCompany || undefined,
-      trackingNo: batchForm.trackingNo || undefined
+      shipCompany: batchForm.shipCompany.trim(),
+      trackingNo: batchForm.trackingNo.trim()
     })
     batchDialogVisible.value = false
     clearSelection()
@@ -234,6 +238,10 @@ async function submitShip() {
     ElMessage.warning('请至少填写物流公司或运单号')
     return
   }
+  if (shipMode.value === 'ship' && (!shipForm.shipCompany.trim() || !shipForm.trackingNo.trim())) {
+    ElMessage.warning('请填写真实的物流公司与运单号')
+    return
+  }
   shipSubmitting.value = true
   try {
     if (shipMode.value === 'logistics') {
@@ -246,8 +254,8 @@ async function submitShip() {
       ElMessage.success('物流信息已更新')
     } else {
       await merchantOrderApi.ship(shipTarget.value.id, {
-        shipCompany: shipForm.shipCompany || undefined,
-        trackingNo: shipForm.trackingNo || undefined
+        shipCompany: shipForm.shipCompany.trim(),
+        trackingNo: shipForm.trackingNo.trim()
       })
       ElMessage.success('发货成功')
     }
@@ -442,14 +450,14 @@ onMounted(load)
           <el-input
             v-model="shipForm.shipCompany"
             maxlength="50"
-            :placeholder="shipMode === 'logistics' ? '不填则保留原物流公司' : '不填则默认“模拟物流”'"
+            :placeholder="shipMode === 'logistics' ? '不填则保留原物流公司' : '如：顺丰速运'"
           />
         </el-form-item>
         <el-form-item label="运单号">
           <el-input
             v-model="shipForm.trackingNo"
             maxlength="50"
-            :placeholder="shipMode === 'logistics' ? '不填则保留原运单号' : '不填则自动生成模拟单号'"
+            :placeholder="shipMode === 'logistics' ? '不填则保留原运单号' : '填写快递公司提供的真实运单号'"
           />
         </el-form-item>
       </el-form>
@@ -577,17 +585,17 @@ onMounted(load)
 
     <el-dialog v-model="batchDialogVisible" title="批量发货" width="460px">
       <div class="dialog-summary">
-        已选 {{ selectedIds.length }} 个子订单，将使用同一组物流信息发货
+        已选 {{ selectedIds.length }} 个子订单，将使用同一包裹的真实运单号发货
       </div>
       <el-form label-width="80px">
         <el-form-item label="物流公司">
-          <el-input v-model="batchForm.shipCompany" maxlength="50" placeholder="不填则默认“模拟物流”" />
+          <el-input v-model="batchForm.shipCompany" maxlength="50" placeholder="如：顺丰速运" />
         </el-form-item>
         <el-form-item label="运单号">
-          <el-input v-model="batchForm.trackingNo" maxlength="50" placeholder="不填则每单自动生成模拟单号" />
+          <el-input v-model="batchForm.trackingNo" maxlength="50" placeholder="填写快递公司提供的真实运单号" />
         </el-form-item>
       </el-form>
-      <div class="batch-tip">多个订单共用一个运单号时会自动追加 -1、-2 后缀</div>
+      <div class="batch-tip">同一包裹内的多个子订单共用一个运单号，系统不会改写单号</div>
       <template #footer>
         <el-button @click="batchDialogVisible = false">取消</el-button>
         <el-button type="primary" :loading="batchSubmitting" @click="submitBatch">

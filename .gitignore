@@ -20,6 +20,7 @@ out/
 MyShopApp/.mvn/wrapper/maven-wrapper.jar
 
 # 本地工具与运行时产物
+.workbuddy/
 .tools/
 tmp/
 .screenshots/

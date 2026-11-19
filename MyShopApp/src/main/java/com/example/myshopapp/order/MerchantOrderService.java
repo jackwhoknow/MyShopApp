@@ -12,6 +12,7 @@ import com.example.myshopapp.order.dto.MerchantRemarkRequest;
 import com.example.myshopapp.order.dto.MerchantSubOrderVO;
 import com.example.myshopapp.order.dto.ShipRequest;
 import com.example.myshopapp.order.dto.SubOrderLogisticsVO;
+import com.example.myshopapp.order.dto.UpdateLogisticsRequest;
 import com.example.myshopapp.order.entity.OrderStatus;
 import com.example.myshopapp.order.entity.SubOrder;
 import com.example.myshopapp.order.entity.SubOrderStatus;
@@ -30,6 +31,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * 商家履约：查看自己店铺的子订单并执行发货。
@@ -105,7 +107,7 @@ public class MerchantOrderService {
      * 修改物流：仅已发货的子订单可改，保留未填写的原有字段。
      */
     @Transactional
-    public MerchantSubOrderVO updateLogistics(Long ownerId, Long subOrderId, ShipRequest request) {
+    public MerchantSubOrderVO updateLogistics(Long ownerId, Long subOrderId, UpdateLogisticsRequest request) {
         Shop shop = requireShop(ownerId);
         SubOrder subOrder = requireOwnedSubOrder(shop.getId(), subOrderId);
         if (subOrder.getStatus() != SubOrderStatus.SHIPPED) {
@@ -158,12 +160,7 @@ public class MerchantOrderService {
                 failures.add(new BatchShipResultVO.Failure(subOrderId, subOrder.getSubOrderNo(), e.getMessage()));
                 continue;
             }
-            // 多单共用同一个运单号时追加序号，避免单号重复
-            String trackingNo = request.trackingNo();
-            if (StringUtils.hasText(trackingNo) && subOrderIds.size() > 1) {
-                trackingNo = trackingNo.trim() + "-" + (i + 1);
-            }
-            doShip(subOrder, request.shipCompany(), trackingNo);
+        doShip(subOrder, request.shipCompany(), request.trackingNo());
             shipped++;
         }
         return new BatchShipResultVO(subOrderIds.size(), shipped, failures);
@@ -178,11 +175,11 @@ public class MerchantOrderService {
         }
     }
 
-    /** 写入物流信息：公司不填默认模拟物流，运单号不填自动生成模拟单号 */
+    /** 写入真实物流信息：公司与运单号由商家提供，系统不生成、不改写任何单号。 */
     private void doShip(SubOrder subOrder, String shipCompany, String trackingNo) {
-        subOrder.setShipCompany(StringUtils.hasText(shipCompany) ? shipCompany.trim() : "模拟物流");
-        subOrder.setTrackingNo(StringUtils.hasText(trackingNo)
-                ? trackingNo.trim() : "MOCK" + subOrder.getSubOrderNo());
+        requireRealLogistics(shipCompany, trackingNo);
+        subOrder.setShipCompany(shipCompany.trim());
+        subOrder.setTrackingNo(trackingNo.trim());
         subOrder.setShippedAt(LocalDateTime.now());
         subOrder.setStatus(SubOrderStatus.SHIPPED);
 
@@ -193,6 +190,16 @@ public class MerchantOrderService {
                 "子订单 " + subOrder.getSubOrderNo() + " 已发货，物流："
                         + subOrder.getShipCompany() + "，运单号：" + subOrder.getTrackingNo(),
                 "/orders/" + subOrder.getOrder().getId());
+    }
+
+    /** 发货必须使用真实物流信息，拒绝模拟单号与占位值 */
+    private void requireRealLogistics(String shipCompany, String trackingNo) {
+        if (!StringUtils.hasText(shipCompany) || !StringUtils.hasText(trackingNo)) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "请填写真实物流公司与运单号");
+        }
+        if (trackingNo.trim().toUpperCase(Locale.ROOT).startsWith("MOCK")) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "运单号不能为模拟单号");
+        }
     }
 
     private SubOrder requireOwnedSubOrder(Long shopId, Long subOrderId) {

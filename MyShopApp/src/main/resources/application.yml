@@ -44,9 +44,12 @@ spring:
     properties:
       mail:
         smtp:
-          auth: true
+          # 465 端口用 SSL；587 端口改为 MAIL_SSL_ENABLED=false + MAIL_STARTTLS_ENABLED=true
+          auth: ${MAIL_SMTP_AUTH:true}
           ssl:
             enable: ${MAIL_SSL_ENABLED:true}
+          starttls:
+            enable: ${MAIL_STARTTLS_ENABLED:false}
           connectiontimeout: 10000
           timeout: 10000
           writetimeout: 10000
@@ -165,7 +168,7 @@ myshop:
   payment:
     # 支付平台回调本站的公网地址前缀，必须是 https 公网域名
     notify-base-url: ${PAY_NOTIFY_BASE_URL:http://localhost:8080}
-    # 模拟支付仅本地/测试环境开启，生产环境关闭
+    # 模拟支付仅测试 profile 显式开启，生产与默认配置一律关闭
     mock-enabled: false
     # 支付对账任务扫描间隔
     reconcile-delay-ms: ${PAY_RECONCILE_DELAY_MS:3600000}

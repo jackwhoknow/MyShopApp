@@ -97,9 +97,8 @@ services:
       PAY_NOTIFY_BASE_URL: ${PAY_NOTIFY_BASE_URL:-http://localhost}
       # 本地联调默认打开 Swagger；生产叠加层会覆盖为 false
       API_DOCS_ENABLED: ${API_DOCS_ENABLED:-true}
-      # 仅本地联调可置 true，生产必须 false
-      MOCK_PAYMENT_ENABLED: ${MOCK_PAYMENT_ENABLED:-false}
       ALIPAY_ENABLED: ${ALIPAY_ENABLED:-false}
+      ALIPAY_SERVER_URL: ${ALIPAY_SERVER_URL:-https://openapi.alipay.com/gateway.do}
       ALIPAY_APP_ID: ${ALIPAY_APP_ID:-}
       ALIPAY_SELLER_ID: ${ALIPAY_SELLER_ID:-}
       ALIPAY_PRIVATE_KEY_PATH: ${ALIPAY_PRIVATE_KEY_PATH:-}
@@ -121,10 +120,13 @@ services:
       MAIL_FROM: ${MAIL_FROM:-}
       MAIL_FROM_NAME: ${MAIL_FROM_NAME:-星耀商城}
       MAIL_SSL_ENABLED: ${MAIL_SSL_ENABLED:-true}
-      # 物流：mock=模拟轨迹，kuaidi100=快递100 实时查询
-      LOGISTICS_PROVIDER: ${LOGISTICS_PROVIDER:-mock}
+      MAIL_STARTTLS_ENABLED: ${MAIL_STARTTLS_ENABLED:-false}
+      MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH:-true}
+      # 物流：仅测试环境可用 mock，生产走 kuaidi100 实时查询
+      LOGISTICS_PROVIDER: ${LOGISTICS_PROVIDER:-kuaidi100}
       KUAIDI100_CUSTOMER: ${KUAIDI100_CUSTOMER:-}
       KUAIDI100_KEY: ${KUAIDI100_KEY:-}
+      KUAIDI100_ENDPOINT: ${KUAIDI100_ENDPOINT:-https://poll.kuaidi100.com/poll/query.do}
       # 图片存储：local=本地磁盘，s3=MinIO/S3 兼容对象存储
       UPLOAD_STORAGE: ${UPLOAD_STORAGE:-local}
       S3_ENDPOINT: ${S3_ENDPOINT:-}

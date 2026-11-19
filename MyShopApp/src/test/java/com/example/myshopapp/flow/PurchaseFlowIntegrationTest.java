@@ -1,5 +1,7 @@
 package com.example.myshopapp.flow;
 
+import com.example.myshopapp.auth.CaptchaService;
+import com.example.myshopapp.product.repository.ProductSkuRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
@@ -10,6 +12,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -28,19 +31,29 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 端到端交易链路回归：开店审核 -> 商品审核 -> 下单支付 -> 发货收货 -> 退货退款。
  * 使用 test profile 的独立库，测试事务结束后回滚。
  */
-@SpringBootTest
+@SpringBootTest(properties = {
+        "myshop.init.admin-username=admin",
+        "myshop.init.admin-password=admin123",
+        "myshop.payment.mock-enabled=true"
+})
 @AutoConfigureMockMvc
 @ActiveProfiles("it")
 @Transactional
 class PurchaseFlowIntegrationTest {
 
-    private static final String PASSWORD = "flow123";
+    private static final String PASSWORD = "flow1238";
+
+    @MockitoBean
+    private CaptchaService captchaService;
 
     @Autowired
     private MockMvc mockMvc;
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private ProductSkuRepository productSkuRepository;
 
     @Test
     @DisplayName("完整交易链路：下单扣库存、支付、发货、收货、退货退款回补库存")
@@ -126,15 +139,16 @@ class PurchaseFlowIntegrationTest {
         long orderId = order.body.path("data").path("id").asLong();
         long subOrderId = order.body.path("data").path("subOrders").get(0).path("id").asLong();
 
-        assertThat(redSkuStock(productId)).isEqualTo(8);
+        assertThat(skuStock(redSkuId)).isEqualTo(8);
         assertThat(get("/api/cart", buyerToken).body.path("data").size()).isZero();
 
         // 支付（重复支付被拒绝）
-        ApiResult pay = postJson("/api/orders/" + orderId + "/pay", buyerToken, Map.of("channel", "MOCK"));
+        ApiResult pay = postJson("/api/payments/" + orderId + "/prepare", buyerToken,
+                Map.of("channel", "MOCK"));
         assertThat(pay.status).isEqualTo(200);
-        assertThat(pay.body.path("data").path("status").asText()).isEqualTo("PAID");
-        assertThat(postJson("/api/orders/" + orderId + "/pay", buyerToken, Map.of("channel", "MOCK")).status)
-                .isEqualTo(409);
+        assertThat(pay.body.path("data").path("paid").asBoolean()).isTrue();
+        assertThat(postJson("/api/payments/" + orderId + "/prepare", buyerToken,
+                Map.of("channel", "MOCK")).status).isEqualTo(409);
 
         // 商家发货 + 买家确认收货
         ApiResult merchantOrders = get("/api/merchant/orders?status=WAIT_SHIP&page=0&size=10", merchantToken);
@@ -171,7 +185,7 @@ class PurchaseFlowIntegrationTest {
         assertThat(confirmReceipt.status).isEqualTo(200);
         assertThat(confirmReceipt.body.path("data").path("status").asText()).isEqualTo("REFUNDED");
 
-        assertThat(redSkuStock(productId)).isEqualTo(10);
+        assertThat(skuStock(redSkuId)).isEqualTo(10);
     }
 
     @Test
@@ -227,8 +241,8 @@ class PurchaseFlowIntegrationTest {
         assertThat(subOrderA).isPositive();
         assertThat(subOrderB).isPositive();
 
-        assertThat(postJson("/api/orders/" + orderId + "/pay", buyerToken, Map.of("channel", "MOCK")).status)
-                .isEqualTo(200);
+        assertThat(postJson("/api/payments/" + orderId + "/prepare", buyerToken,
+                Map.of("channel", "MOCK")).status).isEqualTo(200);
 
         // A 店铺子订单申请仅退款并同意，子订单取消、主订单仍为已支付
         ApiResult afterSale = postJson("/api/after-sales", buyerToken, Map.of(
@@ -311,15 +325,14 @@ class PurchaseFlowIntegrationTest {
 
     private String login(String username, String password) throws Exception {
         ApiResult result = postJson("/api/auth/login", null,
-                Map.of("username", username, "password", password));
+                Map.of("username", username, "password", password,
+                        "captchaId", "test-captcha", "captchaCode", "0"));
         assertThat(result.status).isEqualTo(200);
         return result.body.path("data").path("token").asText();
     }
 
-    private int redSkuStock(long productId) throws Exception {
-        ApiResult result = get("/api/products/" + productId, null);
-        assertThat(result.status).isEqualTo(200);
-        return result.body.path("data").path("skus").get(0).path("stock").asInt();
+    private int skuStock(long skuId) {
+        return productSkuRepository.findById(skuId).orElseThrow().getStock();
     }
 
     private ApiResult get(String path, String token) throws Exception {

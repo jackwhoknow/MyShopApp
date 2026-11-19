@@ -18,11 +18,12 @@ import com.example.myshopapp.payment.wechat.WechatPayService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -65,6 +66,29 @@ public class PaymentService {
         };
     }
 
+    /** 返回当前已配置且可用的支付渠道，前端据此只展示可支付的选项。 */
+    public List<String> availableChannels() {
+        List<String> channels = new ArrayList<>();
+        if (properties.mockEnabled()) {
+            channels.add(PaymentChannel.MOCK.name());
+        }
+        if (enabled(properties.alipay())) {
+            channels.add(PaymentChannel.ALIPAY.name());
+        }
+        if (enabled(properties.wechat())) {
+            channels.add(PaymentChannel.WECHAT.name());
+        }
+        return channels;
+    }
+
+    private boolean enabled(PaymentProperties.Alipay config) {
+        return config != null && config.enabled();
+    }
+
+    private boolean enabled(PaymentProperties.Wechat config) {
+        return config != null && config.enabled();
+    }
+
     public PaymentStatusVO status(Long userId, Long orderId) {
         Order order = orderRepository.findByIdAndUserId(orderId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "订单不存在"));
@@ -74,36 +98,23 @@ public class PaymentService {
 
     /**
      * 售后退款：按订单最近一笔支付记录原路退回。
-     * - 无支付记录或模拟支付：直接标记退款完成（本地联调可用）；
-     * - 真实渠道：调用渠道退款接口，失败时记录为待退款，由对账任务重试，避免出现“售后已退款但钱没退”的情况。
+     * 无支付记录、未知渠道或渠道未启用时一律失败，交由售后流程转人工处理，
+     * 绝不把“本地标记退款”当成真实退款，避免出现钱没退但订单已结束。
      */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     public RefundResult refund(Order order, BigDecimal amount, String refundNo, String reason) {
         PaymentRecord record = paymentRecordRepository.findFirstByOrderIdOrderByIdDesc(order.getId())
                 .orElse(null);
         if (record == null) {
-            log.info("订单 {} 没有支付记录，按本地退款处理", order.getOrderNo());
-            return RefundResult.ok(refundNo);
+            log.error("订单 {} 缺少支付流水，拒绝自动退款，需人工处理", order.getOrderNo());
+            return RefundResult.fail("订单缺少支付流水，无法原路退款，请联系客服处理");
         }
         if (record.getStatus() == PaymentStatus.REFUNDED) {
             return RefundResult.ok(record.getRefundNo());
         }
 
         String channel = record.getChannel() == null ? "" : record.getChannel().toUpperCase(Locale.ROOT);
-        RefundResult result;
-        if (PaymentChannel.MOCK.name().equals(channel)) {
-            result = RefundResult.ok(refundNo);
-        } else if (PaymentChannel.ALIPAY.name().equals(channel)) {
-            result = alipayService.isEnabled()
-                    ? alipayService.refund(order.getOrderNo(), amount, refundNo, reason)
-                    : RefundResult.fail("支付宝渠道未启用，无法自动退款");
-        } else if (PaymentChannel.WECHAT.name().equals(channel)) {
-            result = wechatPayService.isEnabled()
-                    ? wechatPayService.refund(order, amount, refundNo, reason)
-                    : RefundResult.fail("微信支付渠道未启用，无法自动退款");
-        } else {
-            result = RefundResult.fail("未知支付渠道：" + channel);
-        }
+        RefundResult result = refundByChannel(order, amount, refundNo, reason, record, channel);
 
         if (result.success()) {
             record.setStatus(PaymentStatus.REFUNDED);
@@ -118,7 +129,28 @@ public class PaymentService {
         return result;
     }
 
-    /** 模拟支付只在本地/测试环境可用，避免生产环境绕过真实支付 */
+    /** 按原支付渠道退款；模拟支付退款也必须在显式开启的环境下才允许 */
+    private RefundResult refundByChannel(Order order, BigDecimal amount, String refundNo,
+                                         String reason, PaymentRecord record, String channel) {
+        if (PaymentChannel.MOCK.name().equals(channel)) {
+            return properties.mockEnabled()
+                    ? RefundResult.ok(refundNo)
+                    : RefundResult.fail("模拟支付已禁用，无法退款");
+        }
+        if (PaymentChannel.ALIPAY.name().equals(channel)) {
+            return alipayService.isEnabled()
+                    ? alipayService.refund(order.getOrderNo(), amount, refundNo, reason)
+                    : RefundResult.fail("支付宝渠道未启用，无法自动退款");
+        }
+        if (PaymentChannel.WECHAT.name().equals(channel)) {
+            return wechatPayService.isEnabled()
+                    ? wechatPayService.refund(order, amount, refundNo, reason)
+                    : RefundResult.fail("微信支付渠道未启用，无法自动退款");
+        }
+        return RefundResult.fail("未知支付渠道：" + channel);
+    }
+
+    /** 模拟支付只在测试 profile 可用，避免生产环境绕过真实支付 */
     private PaymentPrepareVO mockPay(Order order) {
         if (!properties.mockEnabled()) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "模拟支付未开启");

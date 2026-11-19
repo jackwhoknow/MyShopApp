@@ -11,6 +11,12 @@ export interface MerchantOrderQuery {
 }
 
 export interface ShipPayload {
+  shipCompany: string
+  trackingNo: string
+}
+
+/** 修改物流：允许只改其中一个字段 */
+export interface UpdateLogisticsPayload {
   shipCompany?: string
   trackingNo?: string
 }
@@ -23,11 +29,11 @@ export const merchantOrderApi = {
   list: (params: MerchantOrderQuery) =>
     http.get<PageResult<MerchantSubOrder>>('/api/merchant/orders', { params }),
   detail: (id: number) => http.get<MerchantSubOrder>(`/api/merchant/orders/${id}`),
-  /** 子订单物流轨迹（模拟数据） */
+  /** 子订单物流轨迹，来自快递100 实时查询 */
   logistics: (id: number) => http.get<SubOrderLogistics>(`/api/merchant/orders/${id}/logistics`),
   ship: (id: number, data: ShipPayload) =>
     http.post<MerchantSubOrder>(`/api/merchant/orders/${id}/ship`, data),
-  updateLogistics: (id: number, data: ShipPayload) =>
+  updateLogistics: (id: number, data: UpdateLogisticsPayload) =>
     http.put<MerchantSubOrder>(`/api/merchant/orders/${id}/logistics`, data),
   updateRemark: (id: number, remark: string) =>
     http.put<MerchantSubOrder>(`/api/merchant/orders/${id}/remark`, { remark }),

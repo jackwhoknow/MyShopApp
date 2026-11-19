@@ -9,6 +9,7 @@ import com.example.myshopapp.order.dto.MerchantRemarkRequest;
 import com.example.myshopapp.order.dto.MerchantSubOrderVO;
 import com.example.myshopapp.order.dto.ShipRequest;
 import com.example.myshopapp.order.dto.SubOrderLogisticsVO;
+import com.example.myshopapp.order.dto.UpdateLogisticsRequest;
 import com.example.myshopapp.order.entity.SubOrderStatus;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -69,7 +70,7 @@ public class MerchantOrderController {
     @PutMapping("/{id}/logistics")
     public ApiResponse<MerchantSubOrderVO> updateLogistics(@AuthenticationPrincipal LoginUser loginUser,
                                                            @PathVariable Long id,
-                                                           @Valid @RequestBody ShipRequest request) {
+                                                           @Valid @RequestBody UpdateLogisticsRequest request) {
         return ApiResponse.ok(merchantOrderService.updateLogistics(loginUser.id(), id, request));
     }
 

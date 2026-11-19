@@ -62,6 +62,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 订单业务：结算拆单、库存扣减、支付入账、取消回补库存。
@@ -71,6 +72,8 @@ import java.util.concurrent.ThreadLocalRandom;
 public class OrderService {
 
     private static final DateTimeFormatter NO_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
+    /** 进程内序列，避免同一毫秒的订单号碰撞 */
+    private static final AtomicLong NO_SEQUENCE = new AtomicLong();
 
     /** 积分最多抵扣扣券后应付金额的一半 */
     private static final BigDecimal POINTS_MAX_RATIO = new BigDecimal("0.5");
@@ -432,13 +435,14 @@ public class OrderService {
             return SettlementResult.fail("订单不存在");
         }
         // 同一笔第三方交易只入账一次，支付平台重试回调时直接按成功应答
-        if (paymentRecordRepository.existsByPayNo(tradeNo)) {
+        String payNo = normalizePayNo(tradeNo);
+        if (paymentRecordRepository.existsByPayNo(payNo)) {
             return SettlementResult.ok("重复回调，已处理");
         }
 
         PaymentRecord record = new PaymentRecord();
         record.setOrderId(order.getId());
-        record.setPayNo(tradeNo);
+        record.setPayNo(payNo);
         record.setAmount(amount);
         record.setChannel(channel);
 
@@ -700,9 +704,17 @@ public class OrderService {
         });
     }
 
-    /** 订单号 = 前缀 + 毫秒级时间 + 随机数，演示项目足够避免重复 */
+    /** 订单号 = 前缀 + 毫秒时间 + 4 位序列 + 3 位随机数，长度 26 字符，低于字段上限 32 */
     private String generateNo(String prefix) {
-        int random = ThreadLocalRandom.current().nextInt(1000, 10000);
-        return prefix + LocalDateTime.now().format(NO_FORMATTER) + random;
+        long sequence = NO_SEQUENCE.getAndIncrement() % 10000;
+        int random = ThreadLocalRandom.current().nextInt(100, 1000);
+        return prefix + LocalDateTime.now().format(NO_FORMATTER)
+                + String.format("%04d%03d", sequence, random);
+    }
+
+    /** 支付流水号超过字段上限时压成哈希，保证幂等键稳定且不截断 */
+    private String normalizePayNo(String tradeNo) {
+        String value = tradeNo == null ? "" : tradeNo;
+        return value.length() <= 32 ? value : "H" + Integer.toHexString(value.hashCode());
     }
 }

@@ -24,7 +24,7 @@ function formatTime(value?: string) {
   <div>
     <div class="summary">
       <div>
-        <div class="company">{{ logistics.shipCompany || '模拟物流' }}</div>
+        <div class="company">{{ logistics.shipCompany || '物流公司' }}</div>
         <div class="muted">运单号：{{ logistics.trackingNo || '-' }}</div>
         <div v-if="logistics.shippedAt" class="muted">
           发货时间：{{ formatTime(logistics.shippedAt) }}

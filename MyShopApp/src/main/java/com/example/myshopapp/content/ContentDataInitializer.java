@@ -7,14 +7,17 @@ import com.example.myshopapp.content.repository.BannerRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 首次启动时补充示例轮播与公告，避免首页内容区为空。
+ * 演示内容初始化：只在非生产环境补充轮播与公告，避免生产首页出现假数据。
+ * 生产环境的首页内容由运营后台维护。
  */
 @Slf4j
 @Component
+@Profile("!prod")
 @RequiredArgsConstructor
 public class ContentDataInitializer implements CommandLineRunner {
 

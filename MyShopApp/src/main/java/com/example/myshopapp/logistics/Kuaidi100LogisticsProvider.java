@@ -73,9 +73,6 @@ public class Kuaidi100LogisticsProvider implements LogisticsProvider {
     public Kuaidi100LogisticsProvider(LogisticsProperties properties, ObjectMapper objectMapper) {
         this.properties = properties;
         this.objectMapper = objectMapper;
-        if (!properties.kuaidi100().configured()) {
-            log.warn("已选择快递100物流查询，但未配置 customer/key，物流轨迹将显示为空");
-        }
     }
 
     @Override
@@ -85,13 +82,14 @@ public class Kuaidi100LogisticsProvider implements LogisticsProvider {
 
     @Override
     public SubOrderLogisticsVO query(SubOrder subOrder) {
-        List<SubOrderLogisticsVO.TraceVO> traces = new ArrayList<>();
         String companyCode = resolveCompanyCode(subOrder.getShipCompany());
-        if (companyCode != null && StringUtils.hasText(subOrder.getTrackingNo())
-                && properties.kuaidi100().configured()) {
-            traces.addAll(fetchTraces(companyCode, subOrder.getTrackingNo()));
+        List<SubOrderLogisticsVO.TraceVO> traces = List.of();
+        if (companyCode == null) {
+            log.warn("物流公司「{}」无法映射到快递100编码，子订单 {} 轨迹为空",
+                    subOrder.getShipCompany(), subOrder.getSubOrderNo());
+        } else if (StringUtils.hasText(subOrder.getTrackingNo())) {
+            traces = fetchTraces(companyCode, subOrder.getTrackingNo());
         }
-
         return new SubOrderLogisticsVO(
                 subOrder.getId(),
                 subOrder.getSubOrderNo(),
@@ -104,12 +102,8 @@ public class Kuaidi100LogisticsProvider implements LogisticsProvider {
     }
 
     private List<SubOrderLogisticsVO.TraceVO> fetchTraces(String companyCode, String trackingNo) {
-        String param = "{\"com\":\"" + companyCode + "\",\"num\":\"" + trackingNo + "\"}";
         LogisticsProperties.Kuaidi100 config = properties.kuaidi100();
-        String sign = md5(param + config.key() + config.customer()).toUpperCase(Locale.ROOT);
-        String body = "customer=" + encode(config.customer())
-                + "&sign=" + encode(sign)
-                + "&param=" + encode(param);
+        String body = requestBody(companyCode, trackingNo, config);
         try {
             HttpRequest request = HttpRequest.newBuilder(URI.create(config.endpoint()))
                     .timeout(TIMEOUT)
@@ -138,6 +132,16 @@ public class Kuaidi100LogisticsProvider implements LogisticsProvider {
             log.warn("快递100查询异常，com={} num={}：{}", companyCode, trackingNo, e.getMessage());
             return List.of();
         }
+    }
+
+    /** 快递100 签名规则：MD5(param + key + customer).toUpperCase */
+    private static String requestBody(String companyCode, String trackingNo,
+                                      LogisticsProperties.Kuaidi100 config) {
+        String param = "{\"com\":\"" + companyCode + "\",\"num\":\"" + trackingNo + "\"}";
+        String sign = md5(param + config.key() + config.customer()).toUpperCase(Locale.ROOT);
+        return "customer=" + encode(config.customer())
+                + "&sign=" + encode(sign)
+                + "&param=" + encode(param);
     }
 
     /** 公司名称映射为快递100编码；已经是编码形式时直接使用 */

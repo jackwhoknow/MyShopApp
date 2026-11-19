@@ -12,10 +12,10 @@ spring:
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD}
 
-# 生产环境默认关闭模拟支付，必须配置真实支付参数
+# 生产环境强制关闭模拟支付，不接受任何环境变量覆盖；必须配置真实支付参数
 myshop:
   payment:
-    mock-enabled: ${MOCK_PAYMENT_ENABLED:false}
+    mock-enabled: false
     notify-base-url: ${PAY_NOTIFY_BASE_URL}
   security:
     cors-allowed-origins: ${CORS_ALLOWED_ORIGINS}

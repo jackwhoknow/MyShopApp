@@ -10,7 +10,7 @@ import org.springframework.util.StringUtils;
 public record LogisticsProperties(String provider, Kuaidi100 kuaidi100) {
 
     public LogisticsProperties {
-        provider = StringUtils.hasText(provider) ? provider : "mock";
+        provider = StringUtils.hasText(provider) ? provider : "kuaidi100";
         kuaidi100 = kuaidi100 == null ? new Kuaidi100(null, null, null) : kuaidi100;
     }
 

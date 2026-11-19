@@ -5,7 +5,8 @@ spring:
     password: Lgs_870312
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      # 表结构统一由 Flyway 迁移管理，避免与 Hibernate 自动建表冲突
+      ddl-auto: validate
     show-sql: false
   rabbitmq:
     listener:

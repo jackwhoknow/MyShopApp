@@ -17,8 +17,7 @@ const emit = defineEmits<{
 }>()
 
 const channel = ref<PaymentChannel>('ALIPAY')
-// 模拟支付仅本地开发构建可见，生产环境由后端 mock-enabled=false 双重拦截
-const mockEnabled = import.meta.env.DEV
+const availableChannels = ref<PaymentChannel[]>([])
 const preparing = ref(false)
 const stage = ref<'select' | 'qr' | 'waiting'>('select')
 const codeUrl = ref('')
@@ -43,44 +42,72 @@ function reset() {
 watch(
   () => props.modelValue,
   (visible) => {
-    if (visible) reset()
+    if (visible) {
+      reset()
+      void loadChannels()
+    }
   }
 )
 
+function isPaymentChannel(value: string): value is PaymentChannel {
+  return value === 'ALIPAY' || value === 'WECHAT' || value === 'MOCK'
+}
+
+async function loadChannels() {
+  const list = await paymentApi.channels()
+  availableChannels.value = list.filter(isPaymentChannel)
+  if (!availableChannels.value.includes(channel.value)) {
+    channel.value = availableChannels.value[0] ?? 'ALIPAY'
+  }
+}
+
+function channelLabel(value: PaymentChannel) {
+  if (value === 'ALIPAY') return '支付宝'
+  if (value === 'WECHAT') return '微信支付'
+  return '模拟支付（仅本地）'
+}
+
 async function startPay() {
-  if (preparing.value) return
+  if (preparing.value || availableChannels.value.length === 0) return
   preparing.value = true
   try {
-    const result = await paymentApi.prepare(props.orderId, channel.value)
-    if (result.paid) {
-      ElMessage.success('支付成功')
-      emit('paid')
-      close()
-      return
-    }
-    if (result.payUrl) {
-      // 支付宝官方收银台：支付密码只在支付宝页面输入
-      const opened = window.open(result.payUrl, '_blank', 'noopener')
-      if (!opened) {
-        location.href = result.payUrl
-        return
-      }
-      stage.value = 'waiting'
-      startPolling()
-      return
-    }
-    if (result.codeUrl) {
-      codeUrl.value = result.codeUrl
-      stage.value = 'qr'
-      await nextTick()
-      await renderQr()
-      startPolling()
-      return
-    }
-    ElMessage.warning('支付参数异常，请稍后重试')
+    await preparePayment()
   } finally {
     preparing.value = false
   }
+}
+
+async function preparePayment() {
+  const result = await paymentApi.prepare(props.orderId, channel.value)
+  if (result.paid) return finishPayment()
+  if (result.payUrl) return openPayUrl(result.payUrl)
+  if (result.codeUrl) return showQr(result.codeUrl)
+  ElMessage.warning('支付参数异常，请稍后重试')
+}
+
+function finishPayment() {
+  ElMessage.success('支付成功')
+  emit('paid')
+  close()
+}
+
+function openPayUrl(url: string) {
+  // 支付宝官方收银台：支付密码只在支付宝页面输入
+  const opened = window.open(url, '_blank', 'noopener')
+  if (!opened) {
+    location.href = url
+    return
+  }
+  stage.value = 'waiting'
+  startPolling()
+}
+
+async function showQr(url: string) {
+  codeUrl.value = url
+  stage.value = 'qr'
+  await nextTick()
+  await renderQr()
+  startPolling()
 }
 
 async function renderQr() {
@@ -104,24 +131,26 @@ function stopPolling() {
 
 async function checkStatus() {
   pollCount += 1
-  if (pollCount > 150) {
-    stopPolling()
-    ElMessage.warning('支付结果确认超时，请稍后在订单列表查看')
-    return
-  }
+  if (pollCount > 150) return stopPollingWithWarning()
   const result = await paymentApi.status(props.orderId)
-  if (result.paid) {
-    stopPolling()
-    ElMessage.success('支付成功')
-    emit('paid')
-    close()
-    return
-  }
-  if (result.status === 'CANCELLED') {
-    stopPolling()
-    ElMessage.warning('订单已关闭，无法继续支付')
-    close()
-  }
+  if (result.paid) return handlePaid()
+  if (result.status === 'CANCELLED') handleCancelled()
+}
+
+function stopPollingWithWarning() {
+  stopPolling()
+  ElMessage.warning('支付结果确认超时，请稍后在订单列表查看')
+}
+
+function handlePaid() {
+  stopPolling()
+  finishPayment()
+}
+
+function handleCancelled() {
+  stopPolling()
+  ElMessage.warning('订单已关闭，无法继续支付')
+  close()
 }
 
 onBeforeUnmount(stopPolling)
@@ -142,11 +171,20 @@ onBeforeUnmount(stopPolling)
 
     <template v-if="stage === 'select'">
       <el-radio-group v-model="channel" class="channels">
-        <el-radio value="ALIPAY" border>支付宝</el-radio>
-        <el-radio value="WECHAT" border>微信支付</el-radio>
-        <el-radio v-if="mockEnabled" value="MOCK" border>模拟支付（仅本地）</el-radio>
+        <el-radio v-for="item in availableChannels" :key="item" :value="item" border>
+          {{ channelLabel(item) }}
+        </el-radio>
       </el-radio-group>
       <el-alert
+        v-if="availableChannels.length === 0"
+        type="warning"
+        :closable="false"
+        show-icon
+        class="tip"
+        title="尚未配置可用的在线支付渠道，请联系客服处理"
+      />
+      <el-alert
+        v-else
         type="info"
         :closable="false"
         show-icon
@@ -172,7 +210,13 @@ onBeforeUnmount(stopPolling)
 
     <template #footer>
       <el-button @click="close">{{ stage === 'select' ? '取消' : '关闭' }}</el-button>
-      <el-button v-if="stage === 'select'" type="primary" :loading="preparing" @click="startPay">
+      <el-button
+        v-if="stage === 'select'"
+        type="primary"
+        :loading="preparing"
+        :disabled="availableChannels.length === 0"
+        @click="startPay"
+      >
         {{ channel === 'MOCK' ? '模拟支付' : '去支付' }}
       </el-button>
     </template>

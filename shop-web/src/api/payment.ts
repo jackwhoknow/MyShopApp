@@ -20,6 +20,7 @@ export interface PaymentStatusResult {
 }
 
 export const paymentApi = {
+  channels: () => http.get<PaymentChannel[]>('/api/payments/channels'),
   prepare: (orderId: number, channel: PaymentChannel) =>
     http.post<PaymentPrepareResult>(`/api/payments/${orderId}/prepare`, { channel }),
   status: (orderId: number) => http.get<PaymentStatusResult>(`/api/payments/${orderId}/status`)

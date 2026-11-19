@@ -17,14 +17,14 @@ public class LogisticsService {
 
     private final LogisticsProvider provider;
 
-    public LogisticsService(List<LogisticsProvider> providers) {
-        // 有多个实现时优先选择非 mock 的真实实现
+    public LogisticsService(List<LogisticsProvider> providers, LogisticsProperties properties) {
+        // 严格按配置选路：配置的 Provider 缺失时启动失败，绝不回退到模拟实现
+        String configured = properties.provider();
         this.provider = providers.stream()
-                .filter(item -> !"mock".equals(item.name()))
+                .filter(item -> configured.equalsIgnoreCase(item.name()))
                 .findFirst()
-                .orElseGet(() -> providers.stream()
-                        .findFirst()
-                        .orElseThrow(() -> new IllegalStateException("缺少物流 Provider 实现")));
+                .orElseThrow(() -> new IllegalStateException(
+                        "缺少物流 Provider 实现：" + configured));
         log.info("物流 Provider 已启用：{}", provider.name());
     }
 

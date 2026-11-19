@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -41,6 +42,12 @@ public class PaymentController {
     private final AlipayService alipayService;
     private final WechatPayService wechatPayService;
     private final OrderService orderService;
+
+    /** 当前服务端实际可用的支付渠道，前端据此隐藏未配置的渠道。 */
+    @GetMapping("/channels")
+    public ApiResponse<List<String>> channels() {
+        return ApiResponse.ok(paymentService.availableChannels());
+    }
 
     @PostMapping("/{orderId}/prepare")
     public ApiResponse<PaymentPrepareVO> prepare(@AuthenticationPrincipal LoginUser loginUser,
